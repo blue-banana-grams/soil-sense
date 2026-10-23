@@ -19,5 +19,7 @@ export function explainField(
     ? `Plant ${nextYear.crop} in ${nextYear.year}: ${nextYear.why.toLowerCase()}`
     : 'Stick with the current rotation.';
 
-  return `${scoreLine} ${actionLine}`;
+  const confidenceLine = `${score.confidence.level} confidence in this score, based on how the soil data was collected.`;
+
+  return `${scoreLine} ${actionLine} ${confidenceLine}`;
 }

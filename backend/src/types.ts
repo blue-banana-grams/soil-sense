@@ -1,3 +1,27 @@
+// farmer_entry is not a tier in the spec; see TIER_BASE in services/confidence.ts.
+export type Tier = 'lab' | 'field_test' | 'auto' | 'field_kit' | 'observation' | 'farmer_entry';
+
+export interface Measured<T> {
+  value: T;
+  tier: Tier;
+  unit?: string;
+  method?: string;
+  sampleDate?: string;
+}
+
+export type Texture =
+  | 'sand'
+  | 'loamy sand'
+  | 'sandy loam'
+  | 'loam'
+  | 'silt loam'
+  | 'clay loam'
+  | 'silty clay loam'
+  | 'clay'
+  | 'other';
+
+export type HydrologicGroup = 'A' | 'B' | 'C' | 'D';
+
 export interface CropHistoryEntry {
   year: number;
   crop: string;
@@ -9,11 +33,38 @@ export interface YieldEntry {
 }
 
 export interface SoilProfile {
-  organicMatterPct: number;
-  topsoilDepthIn: number;
-  slopePct: number;
-  erosionClass: string;
-  drainageClass: string;
+  mapUnitComponent: string;
+  organicMatterPct: Measured<number>;
+  topsoilDepthIn: Measured<number>;
+  slopePct: Measured<number>;
+  erosionClass: Measured<string>;
+  drainageClass: Measured<string>;
+  hydrologicGroup: Measured<HydrologicGroup>;
+  ph: Measured<number>;
+  cecMeq100g: Measured<number>;
+  texture: Measured<Texture>;
+}
+
+export type TillageType = 'none' | 'reduced' | 'conventional';
+
+export interface Tillage {
+  type: TillageType;
+  depthIn: number | null;
+}
+
+export interface Amendment {
+  product: string;
+  rate: number;
+  unit: string;
+  date: string;
+  method: string;
+}
+
+// Optional so incomplete input still returns whatever can be computed.
+export interface Management {
+  tillage?: Measured<Tillage>;
+  yieldGoalBuAc?: Measured<number>;
+  amendments?: Measured<Amendment[]>;
 }
 
 export interface FieldRecord {
@@ -23,14 +74,41 @@ export interface FieldRecord {
   lng: number;
   acres: number;
   soil: SoilProfile;
-  cropHistory: CropHistoryEntry[];
-  yieldHistory: YieldEntry[];
+  cropHistory: Measured<CropHistoryEntry[]>;
+  yieldHistory: Measured<YieldEntry[]>;
+  management: Management;
+}
+
+export type ConfidenceLevel = 'High' | 'Medium' | 'Low';
+
+export interface Confidence {
+  value: number;
+  level: ConfidenceLevel;
 }
 
 export interface TopsoilScore {
   value: number;
   label: 'Healthy' | 'Watch' | 'At risk' | 'Depleted';
   reasons: string[];
+  confidence: Confidence;
+}
+
+export type RecommendationId =
+  | 'lime_rate'
+  | 'phosphorus_potassium_rate'
+  | 'nitrogen_plan'
+  | 'compaction'
+  | 'structure_organic_matter'
+  | 'ph_direction';
+
+export interface Recommendation {
+  id: RecommendationId;
+  title: string;
+  status: 'ready' | 'needs_data';
+  advice: string;
+  confidence: Confidence | null;
+  missing: string[];
+  improvesWith: string[];
 }
 
 export interface RotationYearPlan {
@@ -62,6 +140,7 @@ export interface FieldDetail extends FieldRecord {
   score: TopsoilScore;
   rotation: RotationPlan;
   calendar: SeasonCalendar;
+  recommendations: Recommendation[];
   aiExplanation: string;
 }
 

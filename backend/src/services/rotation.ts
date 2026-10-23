@@ -1,19 +1,16 @@
 import type { FieldRecord, RotationPlan } from '../types.js';
+import { continuousCornYears } from './scoring.js';
 
 export function planRotation(field: FieldRecord): RotationPlan {
-  const { soil, cropHistory } = field;
-  const sorted = [...cropHistory].sort((a, b) => b.year - a.year);
+  const { soil, cropHistory, management } = field;
+  const sorted = [...cropHistory.value].sort((a, b) => b.year - a.year);
   const lastCrop = sorted[0]?.crop ?? 'Corn';
   const lastYear = sorted[0]?.year ?? new Date().getFullYear();
+  const cornStreak = continuousCornYears(cropHistory.value);
 
-  let cornStreak = 0;
-  for (const entry of sorted) {
-    if (entry.crop === 'Corn') cornStreak += 1;
-    else break;
-  }
-
-  const lowOrganicMatter = soil.organicMatterPct < 3.5;
-  const steepSlope = soil.slopePct > 5;
+  const lowOrganicMatter = soil.organicMatterPct.value < 3.5;
+  const steepSlope = soil.slopePct.value > 5;
+  const alreadyNoTill = management.tillage?.value.type === 'none';
   const needsCoverCrop = lowOrganicMatter || steepSlope;
 
   const years: RotationPlan['years'] = [];
@@ -58,7 +55,11 @@ export function planRotation(field: FieldRecord): RotationPlan {
     summaryParts.push('add a cover crop year to protect and rebuild topsoil');
   }
   if (steepSlope) {
-    summaryParts.push('pair with no-till to cut erosion on the slope');
+    summaryParts.push(
+      alreadyNoTill
+        ? 'keep no-till to hold soil on the slope'
+        : 'pair with no-till to cut erosion on the slope',
+    );
   }
 
   return {

@@ -1,5 +1,6 @@
 import type { TopsoilScore } from '../types';
 import { scoreColor } from '../lib/score';
+import { ConfidenceBadge } from './ConfidenceBadge';
 
 export function ScoreCard({ score }: { score: TopsoilScore }) {
   return (
@@ -11,10 +12,11 @@ export function ScoreCard({ score }: { score: TopsoilScore }) {
         >
           {score.value}
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-heading text-lg leading-tight">{score.label} topsoil</p>
           <p className="text-sm text-topsoil/70">Score out of 100</p>
         </div>
+        <ConfidenceBadge confidence={score.confidence} />
       </div>
       <ul className="mt-3 space-y-1.5 text-sm text-soil-dark/90">
         {score.reasons.map((reason, i) => (

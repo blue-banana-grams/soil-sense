@@ -4,6 +4,7 @@ import { scoreField } from '../services/scoring.js';
 import { planRotation } from '../services/rotation.js';
 import { buildSeasonCalendar } from '../services/calendar.js';
 import { explainField } from '../services/ai.js';
+import { buildRecommendations } from '../services/recommendations.js';
 import type { FieldDetail, FieldSummary } from '../types.js';
 
 export const fieldsRouter = Router();
@@ -30,6 +31,7 @@ fieldsRouter.get('/:id', (req, res) => {
   const score = scoreField(field);
   const rotation = planRotation(field);
   const calendar = buildSeasonCalendar(new Date().getFullYear() + 1);
+  const recommendations = buildRecommendations(field, rotation);
   const aiExplanation = explainField(field, score, rotation);
 
   const detail: FieldDetail = {
@@ -37,6 +39,7 @@ fieldsRouter.get('/:id', (req, res) => {
     score,
     rotation,
     calendar,
+    recommendations,
     aiExplanation,
   };
 

@@ -42,9 +42,19 @@ Each has a clear seam in `backend/src/services/` and
 
 ## Score & rotation logic
 
+Inputs follow `corn_soil_algorithm_input_spec (2).xlsx` (draft v0.1). Every
+value is stored with its source tier (lab, field test, USDA map data, field
+kit, observation, farmer entry), unit, method and sample date. All weights
+and cutoffs are placeholders pending agronomist calibration.
+
+- `backend/src/services/confidence.ts` — the spec's confidence rules: tier
+  base confidence, age and missing-method penalties, High/Medium/Low.
+- `backend/src/services/recommendations.ts` — the spec's recommendation
+  gates. Never gives lime or P/K rates without lab data; lists what's
+  missing and what would raise confidence.
 - `backend/src/services/scoring.ts` — rule-based topsoil health score (0–100)
   from organic matter, topsoil depth, slope, erosion class, and years of
-  continuous corn.
+  continuous corn, with a confidence level.
 - `backend/src/services/rotation.ts` — rule-based multi-year rotation plan;
   breaks continuous corn into corn-soybean rotation, adds a cover crop year
   when organic matter is low or slope is steep.

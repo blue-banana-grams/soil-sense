@@ -1,7 +1,19 @@
-import type { FieldDetail } from '../types';
+import type { FieldDetail, Measured, Tier } from '../types';
 import { ScoreCard } from './ScoreCard';
 import { RotationPlan } from './RotationPlan';
 import { SeasonCalendar } from './SeasonCalendar';
+import { Recommendations } from './Recommendations';
+
+const TIER_LABEL: Record<Tier, string> = {
+  lab: 'Lab test',
+  field_test: 'Field test',
+  auto: 'USDA map data',
+  field_kit: 'Field kit',
+  observation: 'Observation',
+  farmer_entry: 'Farmer entry',
+};
+
+const TILLAGE_LABEL = { none: 'No-till', reduced: 'Reduced', conventional: 'Conventional' };
 
 interface FieldPanelProps {
   field: FieldDetail | null;
@@ -29,7 +41,9 @@ export function FieldPanel({ field, loading, onClose }: FieldPanelProps) {
               <h2 className="font-heading text-2xl text-soil-dark">
                 {field.name}
               </h2>
-              <p className="text-sm text-topsoil/70">{field.acres} acres · Story County, IA</p>
+              <p className="text-sm text-topsoil/70">
+                {field.acres} acres · {field.soil.mapUnitComponent} · Story County, IA
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -46,26 +60,86 @@ export function FieldPanel({ field, loading, onClose }: FieldPanelProps) {
           </div>
 
           <ScoreCard score={field.score} />
+          <Recommendations items={field.recommendations} />
           <RotationPlan plan={field.rotation} />
           <SeasonCalendar calendar={field.calendar} />
-
-          <div className="rounded-xl border border-clay/40 bg-cream p-4">
-            <p className="font-heading text-lg">Field profile</p>
-            <dl className="mt-2 grid grid-cols-2 gap-y-1.5 text-sm">
-              <dt className="text-topsoil/70">Organic matter</dt>
-              <dd className="text-right font-medium">{field.soil.organicMatterPct}%</dd>
-              <dt className="text-topsoil/70">Topsoil depth</dt>
-              <dd className="text-right font-medium">{field.soil.topsoilDepthIn} in</dd>
-              <dt className="text-topsoil/70">Slope</dt>
-              <dd className="text-right font-medium">{field.soil.slopePct}%</dd>
-              <dt className="text-topsoil/70">Erosion class</dt>
-              <dd className="text-right font-medium">{field.soil.erosionClass}</dd>
-              <dt className="text-topsoil/70">Drainage</dt>
-              <dd className="text-right font-medium">{field.soil.drainageClass}</dd>
-            </dl>
-          </div>
+          <FieldProfile field={field} />
         </div>
       )}
     </aside>
+  );
+}
+
+function FieldProfile({ field }: { field: FieldDetail }) {
+  const { soil, management } = field;
+  const tillage = management.tillage;
+
+  return (
+    <div className="rounded-xl border border-clay/40 bg-cream p-4">
+      <p className="font-heading text-lg">Field profile</p>
+      <dl className="mt-2 space-y-1.5 text-sm">
+        <ProfileRow label="Organic matter" input={soil.organicMatterPct} />
+        <ProfileRow label="Topsoil depth" input={soil.topsoilDepthIn} />
+        <ProfileRow label="Slope" input={soil.slopePct} />
+        <ProfileRow label="Erosion class" input={soil.erosionClass} />
+        <ProfileRow label="Drainage" input={soil.drainageClass} />
+        <ProfileRow label="Texture" input={soil.texture} />
+        <ProfileRow label="pH" input={soil.ph} />
+        <ProfileRow label="CEC" input={soil.cecMeq100g} />
+        <ProfileRow label="Hydrologic group" input={soil.hydrologicGroup} />
+        <ProfileRow
+          label="Tillage"
+          input={tillage}
+          display={
+            tillage &&
+            `${TILLAGE_LABEL[tillage.value.type]}${tillage.value.depthIn ? `, ${tillage.value.depthIn} in` : ''}`
+          }
+        />
+        <ProfileRow label="Yield goal" input={management.yieldGoalBuAc} />
+        <ProfileRow
+          label="Amendments"
+          input={management.amendments}
+          display={
+            management.amendments &&
+            (management.amendments.value.length === 0
+              ? 'None'
+              : management.amendments.value
+                  .map((a) => `${a.product} ${a.rate} ${a.unit}`)
+                  .join('; '))
+          }
+        />
+      </dl>
+    </div>
+  );
+}
+
+function ProfileRow({
+  label,
+  input,
+  display,
+}: {
+  label: string;
+  input: Measured<unknown> | undefined;
+  display?: string;
+}) {
+  const rawUnit = input?.unit;
+  const unit = !rawUnit || rawUnit === 'pH' ? '' : rawUnit === '%' ? '%' : ` ${rawUnit}`;
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="text-topsoil/70">{label}</dt>
+      <dd className="text-right">
+        {input ? (
+          <>
+            <span className="font-medium">{display ?? `${String(input.value)}${unit}`}</span>
+            <span className="block text-[11px] text-topsoil/55">
+              {TIER_LABEL[input.tier]}
+              {input.sampleDate ? ` · ${input.sampleDate}` : ''}
+            </span>
+          </>
+        ) : (
+          <span className="text-rust">Not entered</span>
+        )}
+      </dd>
+    </div>
   );
 }

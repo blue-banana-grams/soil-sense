@@ -1,3 +1,5 @@
+import type { TopsoilScore } from '../types';
+
 export function scoreColor(value: number): string {
   if (value >= 75) return '#2A1B12'; // soil-dark: healthy topsoil
   if (value >= 55) return '#4A2E1C'; // topsoil
@@ -6,9 +8,11 @@ export function scoreColor(value: number): string {
   return '#E3CFA8'; // sand: depleted
 }
 
-export function scoreLabel(value: number): string {
-  if (value >= 75) return 'Healthy';
-  if (value >= 55) return 'Watch';
-  if (value >= 35) return 'At risk';
-  return 'Depleted';
-}
+export const SCORE_MEANING: Record<TopsoilScore['label'], string> = {
+  Healthy: 'Topsoil is holding up well. Keep doing what you are doing.',
+  Watch: 'Starting to thin. Small changes now will pay off.',
+  'At risk': 'Losing topsoil. Worth acting on this season.',
+  Depleted: 'Topsoil is badly worn. Rebuilding it is the priority.',
+};
+
+export const LEGEND_COLORS = ['#2A1B12', '#4A2E1C', '#8A5A3B', '#C49A6C', '#E3CFA8'];

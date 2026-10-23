@@ -9,7 +9,7 @@ const LEVEL_STYLE: Record<Confidence['level'], string> = {
 export function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${LEVEL_STYLE[confidence.level]}`}
+      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${LEVEL_STYLE[confidence.level]}`}
       title={`Confidence ${Math.round(confidence.value * 100)}%`}
     >
       {confidence.level} confidence

@@ -10,7 +10,12 @@ function FitFields({ fields }: { fields: FieldSummary[] }) {
   useEffect(() => {
     if (fields.length === 0) return;
     const bounds = fields.map((f) => [f.lat, f.lng] as [number, number]);
-    map.fitBounds(bounds, { padding: [60, 60] });
+    // Leave room for the field list: along the bottom on phones, on the left on wider screens.
+    const narrow = map.getSize().x < 640;
+    map.fitBounds(bounds, {
+      paddingTopLeft: narrow ? [30, 30] : [370, 50],
+      paddingBottomRight: narrow ? [30, 190] : [50, 50],
+    });
   }, [fields, map]);
   return null;
 }
@@ -37,10 +42,11 @@ export function MapView({ fields, selectedId, onSelect }: MapViewProps) {
         <CircleMarker
           key={field.id}
           center={[field.lat, field.lng]}
-          radius={field.id === selectedId ? 14 : 10}
+          radius={field.id === selectedId ? 18 : 14}
           pathOptions={{
-            color: field.id === selectedId ? '#E9B730' : '#2A1B12',
-            weight: field.id === selectedId ? 3 : 1.5,
+            color:
+              field.id === selectedId ? '#E9B730' : field.scoreValue < 35 ? '#2A1B12' : '#F6EFE1',
+            weight: field.id === selectedId ? 4 : 2.5,
             fillColor: scoreColor(field.scoreValue),
             fillOpacity: 0.85,
           }}

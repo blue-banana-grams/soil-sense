@@ -19,6 +19,8 @@
 
 :root {
   color-scheme: light;
+  /* Slightly larger base so text stays readable outdoors and on phones. */
+  font-size: 17px;
 }
 
 body {
@@ -40,4 +42,18 @@ h3 {
 
 .leaflet-container {
   font-family: var(--font-sans);
+}
+
+/* Warm the street map toward the soil palette. */
+.leaflet-tile-pane {
+  filter: sepia(0.3) saturate(0.85) brightness(1.02);
+}
+
+/* Plowed-row texture for header and backdrop bands. */
+.field-rows {
+  background-image: repeating-linear-gradient(
+    -12deg,
+    rgb(255 255 255 / 0.04) 0 2px,
+    transparent 2px 14px
+  );
 }

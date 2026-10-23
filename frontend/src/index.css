@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+@import 'leaflet/dist/leaflet.css';
+
+@theme {
+  --font-heading: 'Fraunces', serif;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+
+  --color-soil-dark: #2a1b12;
+  --color-topsoil: #4a2e1c;
+  --color-subsoil: #8a5a3b;
+  --color-clay: #c49a6c;
+  --color-sand: #e3cfa8;
+  --color-cream: #f6efe1;
+  --color-field-green: #33502a;
+  --color-leaf: #6e9a3e;
+  --color-corn-yellow: #e9b730;
+  --color-rust: #c2542d;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-cream);
+  color: var(--color-soil-dark);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+
+#root {
+  min-height: 100svh;
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+}

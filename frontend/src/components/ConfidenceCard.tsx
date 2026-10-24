@@ -18,6 +18,8 @@ interface ConfidenceCardProps {
   previous: Snapshot | null;
   actionLabel: string;
   onAction: () => void;
+  // Only passed when there are saved answers to clear.
+  onClear?: () => void;
 }
 
 function changeMessage(current: Snapshot, previous: Snapshot): string | null {
@@ -34,7 +36,7 @@ function changeMessage(current: Snapshot, previous: Snapshot): string | null {
   return `${parts.join('. ')}.`;
 }
 
-export function ConfidenceCard({ current, previous, actionLabel, onAction }: ConfidenceCardProps) {
+export function ConfidenceCard({ current, previous, actionLabel, onAction, onClear }: ConfidenceCardProps) {
   const { confidence, completeness } = current;
   const pct = Math.round(confidence.value * 100);
   const message = previous ? changeMessage(current, previous) : null;
@@ -123,6 +125,14 @@ export function ConfidenceCard({ current, previous, actionLabel, onAction }: Con
         {actionLabel}
       </button>
       <p className="mt-2 text-center text-sm text-topsoil/70">Every question is optional.</p>
+      {onClear && (
+        <button
+          onClick={onClear}
+          className="mx-auto mt-2 block min-h-11 rounded-xl px-3 text-sm font-medium text-rust underline underline-offset-2 hover:bg-rust/10"
+        >
+          Clear my answers
+        </button>
+      )}
     </section>
   );
 }

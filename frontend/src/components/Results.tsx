@@ -3,6 +3,7 @@ import { CalendarDays, Check, Layers, MapPin, RefreshCw, Sprout, Wheat, type Luc
 import type { FarmerDetails, Report } from '../types';
 import { errorMessage, fetchReport, isRejected } from '../lib/api';
 import type { ChosenLocation } from '../lib/route';
+import { answersKey, loadAnswers, saveAnswers } from '../lib/savedAnswers';
 import { Header } from './Header';
 import { LocationMap } from './LocationMap';
 import { ConfidenceCard, type Snapshot } from './ConfidenceCard';
@@ -33,24 +34,6 @@ const LOADING_STEPS = [
   'Checking county yields and irrigation',
 ];
 
-// Details are a per-browser convenience; the app works the same without storage.
-function loadDetails(key: string): FarmerDetails {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as FarmerDetails) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveDetails(key: string, details: FarmerDetails) {
-  try {
-    localStorage.setItem(key, JSON.stringify(details));
-  } catch {
-    // Storage blocked or full: details still apply for this visit.
-  }
-}
-
 interface ResultsProps {
   location: ChosenLocation;
   embedded: boolean;
@@ -60,8 +43,8 @@ interface ResultsProps {
 
 export function Results({ location, embedded, onMove, onChangeLocation }: ResultsProps) {
   const { lat, lng, place } = location;
-  const storageKey = `soilsense:details:${lat.toFixed(4)},${lng.toFixed(4)}`;
-  const [details, setDetails] = useState<FarmerDetails>(() => loadDetails(storageKey));
+  const storageKey = answersKey(lat, lng);
+  const [details, setDetails] = useState<FarmerDetails>(() => loadAnswers(storageKey));
   const [report, setReport] = useState<Report | null>(null);
   const [previous, setPrevious] = useState<Snapshot | null>(null);
   const [status, setStatus] = useState<'loading' | 'updating' | 'ready' | 'error'>('loading');
@@ -82,7 +65,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
         setReport(r);
         setStatus('ready');
         lastAccepted.current = details;
-        saveDetails(storageKey, details);
+        saveAnswers(storageKey, details);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -112,6 +95,13 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
     setDetails(next);
     setTab('overview');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const clearAnswers = () => {
+    if (!window.confirm('Clear the answers saved for this field on this device?')) return;
+    // Wipe storage right away so a quick reload can't bring the answers back.
+    saveAnswers(storageKey, {});
+    submitDetails({});
   };
 
   const header = (
@@ -177,7 +167,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
     <div className="min-h-svh bg-cream">
       {header}
       <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:px-6">
-        <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+        <div className="space-y-4 lg:self-start">
           <div>
             <h1 className="font-heading text-3xl leading-tight">{report.place}</h1>
             <p className="text-base text-topsoil/75">
@@ -203,6 +193,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
             previous={previous}
             actionLabel={answeredAny ? 'Edit your field details' : 'Tell us about your field'}
             onAction={() => setForm({})}
+            onClear={answeredAny ? clearAnswers : undefined}
           />
         </div>
 

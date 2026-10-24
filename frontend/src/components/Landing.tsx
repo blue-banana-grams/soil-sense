@@ -3,6 +3,7 @@ import { LocateFixed, Smartphone } from 'lucide-react';
 import { Header } from './Header';
 import { LocationSearch } from './LocationSearch';
 import type { ChosenLocation } from '../lib/route';
+import { clearAllAnswers, countSavedPlaces } from '../lib/savedAnswers';
 
 // A real small-farm field in Lancaster County, Pennsylvania, used for the "Try an example" button.
 const EXAMPLE: ChosenLocation = { lat: 40.02, lng: -76.08, place: 'Lancaster County, Pennsylvania' };
@@ -14,6 +15,7 @@ interface LandingProps {
 
 export function Landing({ embedded, onChoose }: LandingProps) {
   const [locating, setLocating] = useState(false);
+  const [savedPlaces, setSavedPlaces] = useState(countSavedPlaces);
   const [geoError, setGeoError] = useState<string | null>(null);
 
   const useMyLocation = () => {
@@ -87,6 +89,17 @@ export function Landing({ embedded, onChoose }: LandingProps) {
           <p className="mt-6 text-center text-sm text-sand/80">
             Works anywhere in the lower 48 states. No account needed.
           </p>
+          {savedPlaces > 0 && (
+            <button
+              onClick={() => {
+                clearAllAnswers();
+                setSavedPlaces(0);
+              }}
+              className="mx-auto mt-2 block min-h-11 rounded-xl px-3 text-sm font-medium text-sand underline underline-offset-2 hover:text-cream"
+            >
+              Clear saved answers on this device ({savedPlaces} {savedPlaces === 1 ? 'place' : 'places'})
+            </button>
+          )}
         </div>
       </main>
     </div>

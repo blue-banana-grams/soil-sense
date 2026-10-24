@@ -43,13 +43,19 @@ export function SeasonCalendar({ calendar }: { calendar: SeasonCalendarType }) {
         <p className="font-heading text-lg">Your {year} season</p>
         <p className="mt-0.5 text-sm text-topsoil/70">Typical dates for this spot, from 30 years of local weather.</p>
 
-        <div className="mt-4">
+        <div className="@container mt-4">
           <div
             className="ml-24 grid text-center text-xs font-medium text-topsoil/60"
             style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }}
           >
             {months.map((m) => (
-              <span key={m}>{m}</span>
+              // Initials on narrow cards (phones), full names when there's room.
+              <span key={m}>
+                <span aria-hidden className="@min-[30rem]:hidden">
+                  {m[0]}
+                </span>
+                <span className="sr-only @min-[30rem]:not-sr-only">{m}</span>
+              </span>
             ))}
           </div>
           <div className="mt-1 space-y-2">

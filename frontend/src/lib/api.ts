@@ -12,6 +12,11 @@ export function errorMessage(err: unknown): string {
   return 'Something went wrong. Try again in a minute.';
 }
 
+// The server rejected what was sent (e.g. an out-of-range value), as opposed to being unreachable.
+export function isRejected(err: unknown): boolean {
+  return err instanceof AxiosError && err.response?.status === 400;
+}
+
 export async function searchPlaces(query: string): Promise<GeocodeResult[]> {
   const { data } = await client.get<GeocodeResult[]>('/geocode', { params: { q: query } });
   return data;

@@ -57,13 +57,14 @@ function parseTillage(v: unknown): Tillage {
   return { type: v.type as Tillage['type'], depthIn: optionalNumber(v.depthIn, 'Tillage depth', 0, 24) ?? null };
 }
 
+// Only the product is required; rate, unit and date are optional.
 function parseAmendment(v: unknown, i: number): Amendment {
   if (!isObj(v)) throw new ValidationError(`Fertilizer entry ${i + 1} is not valid.`);
   return {
     product: text(v.product, 'Product', 60),
-    rate: number(v.rate, 'Rate', 0, 100_000),
-    unit: text(v.unit, 'Unit', 20),
-    date: date(v.date, 'Application date'),
+    rate: optionalNumber(v.rate, 'Rate', 0, 100_000) ?? null,
+    unit: v.unit == null || v.unit === '' ? '' : text(v.unit, 'Unit', 20),
+    date: v.date == null || v.date === '' ? null : date(v.date, 'Application date'),
     method: typeof v.method === 'string' ? v.method.slice(0, 40) : '',
   };
 }
@@ -76,26 +77,27 @@ function parseYield(v: unknown): YieldEntry {
   };
 }
 
-function parseLabTest(v: unknown): LabTest {
+// Every field is optional. Returns undefined when no values were given.
+function parseLabTest(v: unknown): LabTest | undefined {
   if (!isObj(v)) throw new ValidationError('Lab test is not valid.');
   const pTestMethod = v.pTestMethod;
-  if (pTestMethod !== undefined && pTestMethod !== null && !P_METHODS.includes(pTestMethod as PTestMethod)) {
+  if (pTestMethod != null && pTestMethod !== '' && !P_METHODS.includes(pTestMethod as PTestMethod)) {
     throw new ValidationError('Phosphorus test method must be Bray-P1, Mehlich-3 or Olsen.');
   }
   const lab: LabTest = {
-    sampleDate: date(v.sampleDate, 'Sample date'),
+    sampleDate: v.sampleDate == null || v.sampleDate === '' ? undefined : date(v.sampleDate, 'Sample date'),
     ph: optionalNumber(v.ph, 'pH', 3.5, 9.5),
     bufferPh: optionalNumber(v.bufferPh, 'Buffer pH', 4, 8),
     organicMatterPct: optionalNumber(v.organicMatterPct, 'Organic matter', 0, 20),
     phosphorusPpm: optionalNumber(v.phosphorusPpm, 'Phosphorus', 0, 500),
     potassiumPpm: optionalNumber(v.potassiumPpm, 'Potassium', 0, 1500),
-    pTestMethod: (pTestMethod ?? undefined) as PTestMethod | undefined,
+    pTestMethod: pTestMethod ? (pTestMethod as PTestMethod) : undefined,
     nitrateNPpm: optionalNumber(v.nitrateNPpm, 'Nitrate-N', 0, 200),
   };
-  if (lab.phosphorusPpm !== undefined && !lab.pTestMethod) {
-    throw new ValidationError('Add the phosphorus test method (Bray-P1, Mehlich-3 or Olsen).');
-  }
-  return lab;
+  const hasValue = [lab.ph, lab.bufferPh, lab.organicMatterPct, lab.phosphorusPpm, lab.potassiumPpm, lab.nitrateNPpm].some(
+    (x) => x !== undefined,
+  );
+  return hasValue ? lab : undefined;
 }
 
 function parsePonding(v: unknown): PondingFrequency {

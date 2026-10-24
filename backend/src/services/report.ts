@@ -32,17 +32,19 @@ function farmer<T>(value: T, unit?: string): Measured<T> {
 function applyLabTest(soil: SoilProfile, details: FarmerDetails): SoilProfile {
   const lab = details.labTest;
   if (!lab) return soil;
-  const measured = (value: number | undefined, unit: string, method = 'Lab soil test') =>
+  const LAB = 'Lab soil test';
+  // `method` stays undefined when the farmer didn't give one, so the spec's missing-method penalty applies.
+  const measured = (value: number | undefined, unit: string, method: string | undefined) =>
     value === undefined ? undefined : { value, tier: 'lab' as const, unit, method, sampleDate: lab.sampleDate };
 
   return {
     ...soil,
-    organicMatterPct: measured(lab.organicMatterPct, '%') ?? soil.organicMatterPct,
-    ph: measured(lab.ph, 'pH') ?? soil.ph,
-    bufferPh: measured(lab.bufferPh, 'pH'),
+    organicMatterPct: measured(lab.organicMatterPct, '%', LAB) ?? soil.organicMatterPct,
+    ph: measured(lab.ph, 'pH', LAB) ?? soil.ph,
+    bufferPh: measured(lab.bufferPh, 'pH', LAB),
     phosphorusPpm: measured(lab.phosphorusPpm, 'ppm', lab.pTestMethod),
-    potassiumPpm: measured(lab.potassiumPpm, 'ppm'),
-    nitrateNPpm: measured(lab.nitrateNPpm, 'ppm'),
+    potassiumPpm: measured(lab.potassiumPpm, 'ppm', LAB),
+    nitrateNPpm: measured(lab.nitrateNPpm, 'ppm', LAB),
   };
 }
 
@@ -87,8 +89,11 @@ function headlineInputs(field: FieldRecord): Measured<unknown>[] {
 }
 
 function dataFactor(details: FarmerDetails): ConfidenceFactor {
-  const detail = details.labTest
-    ? `Includes your lab soil test from ${details.labTest.sampleDate}, the most reliable data there is.`
+  const lab = details.labTest;
+  const detail = lab
+    ? lab.sampleDate
+      ? `Includes your lab soil test from ${lab.sampleDate}, the most reliable data there is.`
+      : 'Includes your lab soil test. Adding the date it was sampled would raise this further.'
     : 'Based on USDA soil maps and satellite crop records, which are area averages, not tests of your field. A lab soil test raises this the most.';
   return { label: 'Soil data', detail, effect: 0 };
 }

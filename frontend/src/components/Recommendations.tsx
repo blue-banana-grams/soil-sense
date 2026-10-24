@@ -1,6 +1,16 @@
-import { ClipboardList, FlaskConical, Leaf, Shovel, Tractor, type LucideIcon } from 'lucide-react';
+import { ClipboardList, FlaskConical, Leaf, Plus, Shovel, Tractor, type LucideIcon } from 'lucide-react';
 import type { Recommendation, RecommendationId } from '../types';
 import { ConfidenceBadge } from './ConfidenceBadge';
+import type { DetailsStep } from './DetailsForm';
+
+// Which question in the details form unlocks each recommendation.
+const UNLOCKED_BY: Partial<Record<RecommendationId, DetailsStep>> = {
+  structure_organic_matter: 'tillage',
+  compaction: 'drainage',
+  ph_direction: 'lab',
+  lime_rate: 'lab',
+  phosphorus_potassium_rate: 'lab',
+};
 
 const ICON: Record<RecommendationId, LucideIcon> = {
   structure_organic_matter: Tractor,
@@ -11,7 +21,7 @@ const ICON: Record<RecommendationId, LucideIcon> = {
   phosphorus_potassium_rate: FlaskConical,
 };
 
-export function Recommendations({ items }: { items: Recommendation[] }) {
+export function Recommendations({ items, onAdd }: { items: Recommendation[]; onAdd: (step: DetailsStep) => void }) {
   const ready = items.filter((r) => r.status === 'ready');
   // Not ready, but nothing the farmer can add would unlock it (e.g. nitrogen, which needs a regional method).
   const guidance = items.filter((r) => r.status === 'needs_data' && r.missing.length === 0);
@@ -69,7 +79,7 @@ export function Recommendations({ items }: { items: Recommendation[] }) {
       })}
 
       {needsData.length > 0 && (
-        <details className="group rounded-2xl border border-dashed border-clay/70 p-4">
+        <details className="group rounded-2xl border border-dashed border-clay/70 p-4" open>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-corn-yellow/25 text-topsoil">
               <ClipboardList className="h-5 w-5" aria-hidden />
@@ -84,13 +94,25 @@ export function Recommendations({ items }: { items: Recommendation[] }) {
             <span className="hidden text-sm font-medium text-subsoil group-open:inline">Hide</span>
           </summary>
           <ul className="mt-3 space-y-3">
-            {needsData.map((rec) => (
-              <li key={rec.id} className="rounded-xl bg-cream p-3 ring-1 ring-clay/30">
-                <p className="text-base font-semibold">{rec.title}</p>
-                <p className="mt-0.5 text-base text-soil-dark/90">{rec.advice}</p>
-                <p className="mt-1.5 text-sm font-medium text-rust">Add: {rec.missing.join(', ')}</p>
-              </li>
-            ))}
+            {needsData.map((rec) => {
+              const step = UNLOCKED_BY[rec.id];
+              return (
+                <li key={rec.id} className="rounded-xl bg-cream p-3 ring-1 ring-clay/30">
+                  <p className="text-base font-semibold">{rec.title}</p>
+                  <p className="mt-0.5 text-base text-soil-dark/90">{rec.advice}</p>
+                  <p className="mt-1.5 text-sm text-topsoil/80">Needs: {rec.missing.join(', ')}</p>
+                  {step && (
+                    <button
+                      onClick={() => onAdd(step)}
+                      className="mt-2 flex min-h-11 items-center gap-1.5 rounded-xl bg-field-green px-3 text-sm font-semibold text-cream hover:brightness-110"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Add this
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}

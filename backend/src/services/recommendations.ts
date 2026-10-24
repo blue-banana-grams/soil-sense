@@ -47,7 +47,8 @@ function limeRate(field: FieldRecord, adjustment: number): Recommendation {
 
 function phosphorusPotassiumRate(field: FieldRecord, adjustment: number): Recommendation {
   const { phosphorusPpm: p, potassiumPpm: k } = field.soil;
-  if (!p || !k) {
+  // Spec gate: phosphorus (lab), potassium (lab) and the phosphorus test method.
+  if (!p || !k || !p.method) {
     return {
       id: 'phosphorus_potassium_rate',
       title: 'Phosphorus & potassium rate',
@@ -55,7 +56,8 @@ function phosphorusPotassiumRate(field: FieldRecord, adjustment: number): Recomm
       advice: 'No phosphorus or potassium rate without a lab soil test.',
       confidence: null,
       missing: [
-        ...(p ? [] : ['Lab phosphorus test (with test method)']),
+        ...(p ? [] : ['Lab phosphorus test']),
+        ...(p && !p.method ? ['Phosphorus test method (on your lab report)'] : []),
         ...(k ? [] : ['Lab potassium test']),
       ],
       improvesWith: [],

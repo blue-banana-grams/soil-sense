@@ -30,6 +30,9 @@ export function inputConfidence(input: Measured<unknown>, asOf: Date = new Date(
     if (ageYears > CONFIDENCE_RULES.ageThresholdYears) {
       confidence *= CONFIDENCE_RULES.agePenaltyFactor;
     }
+  } else if (TESTED_TIERS.has(input.tier)) {
+    // A test with no sample date can't be shown to be recent, so treat it like an old one.
+    confidence *= CONFIDENCE_RULES.agePenaltyFactor;
   }
 
   const missingUnit = typeof input.value === 'number' && !input.unit;

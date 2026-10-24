@@ -76,7 +76,9 @@ export function SoilProfile({ report }: { report: Report }) {
             amendments &&
             (amendments.value.length === 0
               ? 'None this season'
-              : amendments.value.map((a) => `${a.product}, ${a.rate} ${a.unit}`).join('; '))
+              : amendments.value
+                  .map((a) => (a.rate === null ? a.product : `${a.product}, ${a.rate} ${a.unit}`.trim()))
+                  .join('; '))
           }
         />
       </Section>

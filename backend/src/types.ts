@@ -58,9 +58,9 @@ export interface Tillage {
 
 export interface Amendment {
   product: string;
-  rate: number;
+  rate: number | null;
   unit: string;
-  date: string;
+  date: string | null;
   method: string;
 }
 
@@ -87,8 +87,9 @@ export interface FieldRecord {
 
 export type PTestMethod = 'Bray-P1' | 'Mehlich-3' | 'Olsen';
 
+// Every field is optional; missing dates and methods lower confidence instead of blocking.
 export interface LabTest {
-  sampleDate: string;
+  sampleDate?: string;
   ph?: number;
   bufferPh?: number;
   organicMatterPct?: number;

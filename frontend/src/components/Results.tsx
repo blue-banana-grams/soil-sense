@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Check, Layers, MapPin, RefreshCw, Sprout, Wheat, type LucideIcon } from 'lucide-react';
 import type { FarmerDetails, Report } from '../types';
-import { errorMessage, fetchReport } from '../lib/api';
+import { errorMessage, fetchReport, isRejected } from '../lib/api';
 import type { ChosenLocation } from '../lib/route';
 import { Header } from './Header';
 import { LocationMap } from './LocationMap';
@@ -13,7 +13,7 @@ import { RotationPlan } from './RotationPlan';
 import { CountyComparison } from './CountyComparison';
 import { SeasonCalendar } from './SeasonCalendar';
 import { SoilProfile } from './SoilProfile';
-import { DetailsForm } from './DetailsForm';
+import { DetailsForm, type DetailsStep } from './DetailsForm';
 
 type TabId = 'overview' | 'plan' | 'season' | 'soil';
 
@@ -66,8 +66,12 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
   const [status, setStatus] = useState<'loading' | 'updating' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [formOpen, setFormOpen] = useState(false);
+  // null = form closed; otherwise the step to open it on.
+  const [form, setForm] = useState<{ step?: DetailsStep } | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('overview');
+  // The last details the server accepted, to fall back on if newer ones are rejected.
+  const lastAccepted = useRef<FarmerDetails | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,24 +80,34 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
         if (cancelled) return;
         setReport(r);
         setStatus('ready');
+        lastAccepted.current = details;
+        saveDetails(storageKey, details);
       })
       .catch((err) => {
         if (cancelled) return;
+        const fallback = lastAccepted.current ?? {};
+        // Never get stuck on details the server won't take: report why and go back to the last good ones.
+        if (isRejected(err) && details !== fallback && Object.keys(details).length > 0) {
+          const kept = Object.keys(fallback).length > 0 ? 'Your earlier answers are still in place.' : 'We set them aside so your results still load.';
+          setSaveError(`We couldn't use those details: ${errorMessage(err)} ${kept}`);
+          setDetails(fallback);
+          return;
+        }
         setError(errorMessage(err));
         setStatus('error');
       });
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, place, details, attempt]);
+  }, [lat, lng, place, details, attempt, storageKey]);
 
   const moveTo = (newLat: number, newLng: number) => onMove({ lat: newLat, lng: newLng, place });
 
   const submitDetails = (next: FarmerDetails) => {
-    setFormOpen(false);
+    setForm(null);
+    setSaveError(null);
     setPrevious(report ? { confidence: report.confidence, completeness: report.completeness } : null);
     setStatus(report ? 'updating' : 'loading');
-    saveDetails(storageKey, next);
     setDetails(next);
     setTab('overview');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -178,11 +192,16 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
               {report.farmlandWarning}
             </p>
           )}
+          {saveError && (
+            <p className="rounded-2xl bg-rust/10 px-4 py-3 text-base font-medium text-rust" role="alert">
+              {saveError}
+            </p>
+          )}
           <ConfidenceCard
             current={{ confidence: report.confidence, completeness: report.completeness }}
             previous={previous}
             actionLabel={answeredAny ? 'Edit your field details' : 'Tell us about your field'}
-            onAction={() => setFormOpen(true)}
+            onAction={() => setForm({})}
           />
         </div>
 
@@ -230,7 +249,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
                 </div>
                 {report.thisWeek && <ThisWeekCard week={report.thisWeek} />}
                 <ScoreCard score={report.score} />
-                <Recommendations items={report.recommendations} />
+                <Recommendations items={report.recommendations} onAdd={(step) => setForm({ step })} />
               </>
             )}
             {tab === 'plan' && (
@@ -244,8 +263,15 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
                       <p className="font-heading text-lg">{report.location.countyName} yields</p>
                       <p className="mt-1 text-base">
                         Corn here has averaged {report.countyCornYieldAvg} bu/acre over the last 5 years (USDA NASS).
-                        Add last season's yield to see how you compare.
                       </p>
+                      {(lastCrop?.crop === 'Corn' || lastCrop?.crop === 'Soybeans') && (
+                        <button
+                          onClick={() => setForm({ step: 'yields' })}
+                          className="mt-3 min-h-11 rounded-xl bg-field-green px-4 text-base font-semibold text-cream hover:brightness-110"
+                        >
+                          Add your {lastCrop.year} yield to compare
+                        </button>
+                      )}
                     </div>
                   )
                 )}
@@ -271,13 +297,14 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
         </div>
       </main>
 
-      {formOpen && (
+      {form && (
         <DetailsForm
           initial={details}
+          initialStep={form.step}
           lastCrop={lastCrop}
           countyCornAvg={report.countyCornYieldAvg}
           countyName={report.location.countyName}
-          onCancel={() => setFormOpen(false)}
+          onCancel={() => setForm(null)}
           onSubmit={submitDetails}
         />
       )}

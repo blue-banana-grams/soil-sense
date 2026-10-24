@@ -11,10 +11,12 @@ function FitFields({ fields }: { fields: FieldSummary[] }) {
     if (fields.length === 0) return;
     const bounds = fields.map((f) => [f.lat, f.lng] as [number, number]);
     // Leave room for the field list: along the bottom on phones, on the left on wider screens.
-    const narrow = map.getSize().x < 640;
+    // Scale the reserved room with the map so short windows don't zoom all the way out.
+    const size = map.getSize();
+    const narrow = size.x < 640;
     map.fitBounds(bounds, {
-      paddingTopLeft: narrow ? [30, 30] : [370, 50],
-      paddingBottomRight: narrow ? [30, 190] : [50, 50],
+      paddingTopLeft: narrow ? [24, 24] : [Math.min(370, size.x * 0.45), 40],
+      paddingBottomRight: narrow ? [24, Math.min(190, size.y * 0.45)] : [40, 40],
     });
   }, [fields, map]);
   return null;

@@ -48,6 +48,13 @@ For county yields and irrigation, copy `backend/.env.example` to
 (https://quickstats.nass.usda.gov/api). Without it, the app still works and
 leaves those parts out. `.env` is git-ignored; never commit the key.
 
+## Deploying
+
+The repo is linked to Vercel. Every push to `main` deploys to production
+(https://soil-sense-xi.vercel.app) automatically; other branches and pull
+requests get their own preview links. The NASS key is set for production
+only, so previews leave out county yields and irrigation.
+
 ## Data sources (all free)
 
 | Data | Source | File |

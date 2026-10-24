@@ -8,6 +8,7 @@ const LEVEL_COLOR: Record<OverallConfidence['level'], string> = {
 };
 
 export interface Snapshot {
+  score: Report['score'];
   confidence: OverallConfidence;
   completeness: Report['completeness'];
 }
@@ -24,6 +25,9 @@ function changeMessage(current: Snapshot, previous: Snapshot): string | null {
   const before = Math.round(previous.confidence.value * 100);
   const unlocked = current.completeness.ready - previous.completeness.ready;
   const parts: string[] = [];
+  if (current.score.value !== previous.score.value) {
+    parts.push(`Topsoil score ${previous.score.value} → ${current.score.value} (${current.score.label})`);
+  }
   if (now !== before) parts.push(`Confidence ${now > before ? 'up' : 'down'} from ${before}% to ${now}%`);
   if (unlocked > 0) parts.push(`${unlocked} more piece${unlocked === 1 ? '' : 's'} of advice unlocked`);
   if (parts.length === 0) return null;

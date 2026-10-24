@@ -1,11 +1,7 @@
 import type { FieldRecord, Measured, Recommendation, RotationPlan } from '../types.js';
 import { combineConfidence } from './confidence.js';
 import { continuousCornYears } from './scoring.js';
-
-// Placeholders: the spec's source gives no pH targets. Replace with regional
-// guidance (e.g. Iowa State PM 1688) before anyone acts on them.
-const PH_ACIDIC_BELOW = 6.0;
-const PH_ALKALINE_ABOVE = 7.3;
+import { PH_ACIDIC_BELOW, PH_ALKALINE_ABOVE } from './thresholds.js';
 
 // The spec forbids calculating a nitrogen rate without a validated regional
 // method and its mandatory inputs. None is wired in yet, so the nitrogen plan

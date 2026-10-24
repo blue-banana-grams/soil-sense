@@ -86,7 +86,11 @@ pending agronomist calibration.
 - `services/recommendations.ts` — the spec's recommendation gates. Never
   calculates lime or P/K rates; lists what's missing and what would raise
   confidence.
-- `services/scoring.ts` — rule-based topsoil health score (0–100).
+- `services/scoring.ts` — rule-based topsoil health score (0–100) from
+  organic matter, topsoil depth, slope, erosion and continuous corn, plus
+  the farmer's tested pH (outside ~6.0–7.3), tillage and ponding when given.
+  The soil map's pH isn't scored; phosphorus and potassium aren't scored
+  until regional interpretation tables are added.
 - `services/rotation.ts` — multi-year rotation plan starting next season.
 - `services/calendar.ts` / `services/season.ts` — season calendar from the
   location's own climate (spec Climate_Derivations: 86/50 °F GDD, May–Sep,

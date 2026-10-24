@@ -106,7 +106,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
   const submitDetails = (next: FarmerDetails) => {
     setForm(null);
     setSaveError(null);
-    setPrevious(report ? { confidence: report.confidence, completeness: report.completeness } : null);
+    setPrevious(report ? { score: report.score, confidence: report.confidence, completeness: report.completeness } : null);
     setStatus(report ? 'updating' : 'loading');
     setDetails(next);
     setTab('overview');
@@ -198,7 +198,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
             </p>
           )}
           <ConfidenceCard
-            current={{ confidence: report.confidence, completeness: report.completeness }}
+            current={{ score: report.score, confidence: report.confidence, completeness: report.completeness }}
             previous={previous}
             actionLabel={answeredAny ? 'Edit your field details' : 'Tell us about your field'}
             onAction={() => setForm({})}

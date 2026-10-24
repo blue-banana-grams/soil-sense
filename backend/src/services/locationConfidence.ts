@@ -88,9 +88,11 @@ function irrigationFactor(pct: number | null, withheld: boolean, countyName: str
   if (pct >= IRRIGATED_SOME_PCT) {
     return { label: 'Irrigation', detail: `About ${pct}% of corn in ${countyName} is irrigated.`, effect: 2 };
   }
+  // A share that rounds to 0% still means a handful of irrigated acres, so don't say "0%".
+  const share = pct === 0 ? 'Almost none of the corn' : `Only about ${pct}% of corn`;
   return {
     label: 'Irrigation',
-    detail: `Only about ${pct}% of corn in ${countyName} is irrigated, so yields here ride on rainfall.`,
+    detail: `${share} in ${countyName} is irrigated, so yields here ride on rainfall.`,
     effect: 0,
   };
 }

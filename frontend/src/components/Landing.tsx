@@ -4,8 +4,8 @@ import { Header } from './Header';
 import { LocationSearch } from './LocationSearch';
 import type { ChosenLocation } from '../lib/route';
 
-// A real cornfield northwest of Ames, Iowa, used for the "Try an example" button.
-const EXAMPLE: ChosenLocation = { lat: 42.07, lng: -93.65, place: 'Ames, Iowa' };
+// A real small-farm field in Lancaster County, Pennsylvania, used for the "Try an example" button.
+const EXAMPLE: ChosenLocation = { lat: 40.02, lng: -76.08, place: 'Lancaster County, Pennsylvania' };
 
 interface LandingProps {
   embedded: boolean;
@@ -76,7 +76,7 @@ export function Landing({ embedded, onChoose }: LandingProps) {
               onClick={() => onChoose(EXAMPLE)}
               className="flex min-h-14 flex-1 items-center justify-center rounded-2xl px-4 text-base font-medium text-cream ring-2 ring-cream/40 hover:bg-cream/10"
             >
-              Try an example (Ames, Iowa)
+              Try an example (Lancaster, PA)
             </button>
           </div>
           {geoError && (

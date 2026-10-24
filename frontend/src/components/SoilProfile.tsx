@@ -64,7 +64,11 @@ export function SoilProfile({ report }: { report: Report }) {
             `${TILLAGE_LABEL[tillage.value.type]}${tillage.value.depthIn ? `, ${tillage.value.depthIn} in deep` : ''}`
           }
         />
-        <Row label="Yield goal" input={management.yieldGoalBuAc} />
+        <Row
+          label="Ponding / slow drying"
+          input={management.pondingOrSlowDrying}
+          display={management.pondingOrSlowDrying && capitalize(management.pondingOrSlowDrying.value)}
+        />
         <Row
           label="Fertilizer & manure"
           input={amendments}

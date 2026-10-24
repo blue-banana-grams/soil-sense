@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Sprout } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 const SCREEN = { width: 390, height: 844 };
 const BEZEL = 14;
@@ -40,9 +40,7 @@ export function PhoneDemo() {
           Open the full map
         </a>
         <div className="mt-4 flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-leaf text-cream">
-            <Sprout className="h-7 w-7" aria-hidden />
-          </span>
+          <img src="/logo.png" alt="" className="h-14 w-14" />
           <p className="font-heading text-2xl">SoilSense</p>
         </div>
         <h1 className="mt-6 font-heading text-4xl leading-tight sm:text-5xl">

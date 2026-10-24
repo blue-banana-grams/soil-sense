@@ -1,15 +1,28 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
-import type { Amendment, FarmerDetails, LabTest, PTestMethod, TillageType } from '../types';
+import { Check, Plus, Trash2, X } from 'lucide-react';
+import type { Amendment, FarmerDetails, LabTest, PondingFrequency, PTestMethod, TillageType } from '../types';
 
 const TILLAGE_OPTIONS: { value: TillageType; label: string; hint: string }[] = [
   { value: 'none', label: 'No-till', hint: 'I plant straight into last year’s residue' },
   { value: 'reduced', label: 'Reduced tillage', hint: 'One light pass, most residue stays on top' },
   { value: 'conventional', label: 'Conventional tillage', hint: 'Chisel, disk or plow, little residue left' },
 ];
+const PONDING_OPTIONS: { value: PondingFrequency; label: string }[] = [
+  { value: 'never', label: 'Never' },
+  { value: 'sometimes', label: 'Sometimes' },
+  { value: 'often', label: 'Often' },
+];
 const UNITS = ['lb N/ac', 'gal/ac', 'ton/ac', 'lb/ac'];
 const P_METHODS: PTestMethod[] = ['Bray-P1', 'Mehlich-3', 'Olsen'];
-const STEPS = ['Tillage', 'Yields', 'Fertilizer', 'Soil test'];
+
+type StepId = 'tillage' | 'drainage' | 'yields' | 'fertilizer' | 'lab';
+const STEP_LABEL: Record<StepId, string> = {
+  tillage: 'Tillage',
+  drainage: 'Drainage',
+  yields: 'Last season',
+  fertilizer: 'Fertilizer',
+  lab: 'Soil test',
+};
 
 interface AmendmentDraft {
   product: string;
@@ -21,8 +34,9 @@ interface AmendmentDraft {
 interface Draft {
   tillage: TillageType | '';
   tillageDepth: string;
-  yieldGoal: string;
+  ponding: PondingFrequency | '';
   lastYield: string;
+  noneApplied: boolean;
   amendments: AmendmentDraft[];
   lab: Record<'sampleDate' | 'ph' | 'bufferPh' | 'om' | 'p' | 'k' | 'nitrate', string> & { pMethod: PTestMethod | '' };
 }
@@ -35,8 +49,9 @@ function toDraft(d: FarmerDetails, lastYear: number | null): Draft {
   return {
     tillage: d.tillage?.type ?? '',
     tillageDepth: str(d.tillage?.depthIn),
-    yieldGoal: str(d.yieldGoalBuAc),
+    ponding: d.pondingOrSlowDrying ?? '',
     lastYield: str(d.yieldHistory?.find((y) => y.year === lastYear)?.bushelsPerAcre),
+    noneApplied: d.amendments !== undefined && d.amendments.length === 0,
     amendments: (d.amendments ?? []).map((a) => ({ product: a.product, rate: String(a.rate), unit: a.unit, date: a.date })),
     lab: {
       sampleDate: lab?.sampleDate ?? '',
@@ -52,35 +67,38 @@ function toDraft(d: FarmerDetails, lastYear: number | null): Draft {
 }
 
 // Returns the details, or an error message naming the step to fix.
-function fromDraft(draft: Draft, lastYear: number | null): { details?: FarmerDetails; error?: { step: number; message: string } } {
+function fromDraft(draft: Draft, lastYear: number | null): { details?: FarmerDetails; error?: { step: StepId; message: string } } {
   const details: FarmerDetails = {};
   if (draft.tillage) details.tillage = { type: draft.tillage, depthIn: num(draft.tillageDepth) ?? null };
+  if (draft.ponding) details.pondingOrSlowDrying = draft.ponding;
 
-  const goal = num(draft.yieldGoal);
-  if (goal !== undefined) details.yieldGoalBuAc = goal;
   const lastYield = num(draft.lastYield);
   if (lastYield !== undefined && lastYear !== null) details.yieldHistory = [{ year: lastYear, bushelsPerAcre: lastYield }];
 
-  const rows = draft.amendments.filter((a) => a.product || a.rate || a.date);
-  if (rows.some((a) => !a.product.trim() || num(a.rate) === undefined || !a.date)) {
-    return { error: { step: 2, message: 'Fill in product, rate and date for each fertilizer, or remove the row.' } };
-  }
-  if (rows.length > 0) {
-    details.amendments = rows.map<Amendment>((a) => ({
-      product: a.product.trim(),
-      rate: Number(a.rate),
-      unit: a.unit,
-      date: a.date,
-      method: '',
-    }));
+  if (draft.noneApplied) {
+    details.amendments = [];
+  } else {
+    const rows = draft.amendments.filter((a) => a.product || a.rate || a.date);
+    if (rows.some((a) => !a.product.trim() || num(a.rate) === undefined || !a.date)) {
+      return { error: { step: 'fertilizer', message: 'Fill in product, rate and date for each application, or remove the row.' } };
+    }
+    if (rows.length > 0) {
+      details.amendments = rows.map<Amendment>((a) => ({
+        product: a.product.trim(),
+        rate: Number(a.rate),
+        unit: a.unit,
+        date: a.date,
+        method: '',
+      }));
+    }
   }
 
   const { lab } = draft;
   const values = [lab.ph, lab.bufferPh, lab.om, lab.p, lab.k, lab.nitrate];
   if (values.some((v) => v.trim() !== '')) {
-    if (!lab.sampleDate) return { error: { step: 3, message: 'Add the date your soil was sampled.' } };
+    if (!lab.sampleDate) return { error: { step: 'lab', message: 'Add the date your soil was sampled.' } };
     if (lab.p.trim() && !lab.pMethod) {
-      return { error: { step: 3, message: 'Pick the phosphorus test method from your lab report.' } };
+      return { error: { step: 'lab', message: 'Pick the phosphorus test method from your lab report.' } };
     }
     const labTest: LabTest = {
       sampleDate: lab.sampleDate,
@@ -108,9 +126,14 @@ interface DetailsFormProps {
 
 export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCancel, onSubmit }: DetailsFormProps) {
   const lastYear = lastCrop?.year ?? null;
+  const askYield = lastCrop !== null && (lastCrop.crop === 'Corn' || lastCrop.crop === 'Soybeans');
+  const steps: StepId[] = ['tillage', 'drainage', ...(askYield ? (['yields'] as const) : []), 'fertilizer', 'lab'];
+
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial, lastYear));
-  const [step, setStep] = useState(0);
+  const [index, setIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const step = steps[index];
+  const isLast = index === steps.length - 1;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel();
@@ -120,22 +143,20 @@ export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCa
 
   const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const updateLab = (patch: Partial<Draft['lab']>) => setDraft((d) => ({ ...d, lab: { ...d.lab, ...patch } }));
-  const isLast = step === STEPS.length - 1;
 
-  const finish = () => {
+  const next = () => {
+    setError(null);
+    if (!isLast) {
+      setIndex(index + 1);
+      return;
+    }
     const result = fromDraft(draft, lastYear);
     if (result.error) {
-      setStep(result.error.step);
+      setIndex(steps.indexOf(result.error.step));
       setError(result.error.message);
       return;
     }
     onSubmit(result.details!);
-  };
-
-  const next = () => {
-    setError(null);
-    if (isLast) finish();
-    else setStep(step + 1);
   };
 
   return (
@@ -149,11 +170,11 @@ export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCa
         <div className="flex items-center justify-between gap-3 border-b border-clay/30 px-5 py-4">
           <div>
             <p className="text-sm font-medium text-topsoil/70">
-              Step {step + 1} of {STEPS.length} · {STEPS[step]}
+              Step {index + 1} of {steps.length} · {STEP_LABEL[step]}
             </p>
             <div className="mt-1.5 flex gap-1.5" aria-hidden>
-              {STEPS.map((s, i) => (
-                <span key={s} className={`h-1.5 w-10 rounded-full ${i <= step ? 'bg-leaf' : 'bg-sand'}`} />
+              {steps.map((s, i) => (
+                <span key={s} className={`h-1.5 w-9 rounded-full ${i <= index ? 'bg-leaf' : 'bg-sand'}`} />
               ))}
             </div>
           </div>
@@ -167,21 +188,17 @@ export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCa
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {step === 0 && (
-            <Question id="details-title" title="How do you work this field?">
+          {step === 'tillage' && (
+            <Question title="How do you work this field?">
               <div className="space-y-2.5">
                 {TILLAGE_OPTIONS.map((o) => (
-                  <button
+                  <Choice
                     key={o.value}
+                    selected={draft.tillage === o.value}
                     onClick={() => update({ tillage: draft.tillage === o.value ? '' : o.value })}
-                    aria-pressed={draft.tillage === o.value}
-                    className={`w-full rounded-2xl px-4 py-3 text-left ring-2 transition-colors ${
-                      draft.tillage === o.value ? 'bg-leaf/15 ring-leaf' : 'ring-clay/40 hover:bg-sand/40'
-                    }`}
-                  >
-                    <span className="block text-base font-semibold">{o.label}</span>
-                    <span className="block text-sm text-topsoil/75">{o.hint}</span>
-                  </button>
+                    label={o.label}
+                    hint={o.hint}
+                  />
                 ))}
               </div>
               {(draft.tillage === 'reduced' || draft.tillage === 'conventional') && (
@@ -196,84 +213,108 @@ export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCa
             </Question>
           )}
 
-          {step === 1 && (
-            <Question id="details-title" title="What yield are you aiming for?">
+          {step === 'drainage' && (
+            <Question title="Does water pond, or does the field dry slowly in spring?">
+              <p className="mb-3 text-base text-topsoil/80">Your best guess is fine. It helps us spot compaction.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {PONDING_OPTIONS.map((o) => (
+                  <Choice
+                    key={o.value}
+                    selected={draft.ponding === o.value}
+                    onClick={() => update({ ponding: draft.ponding === o.value ? '' : o.value })}
+                    label={o.label}
+                    center
+                  />
+                ))}
+              </div>
+            </Question>
+          )}
+
+          {step === 'yields' && lastCrop && (
+            <Question title={`How did ${lastCrop.year} go?`}>
               <NumberField
-                label="Corn yield goal (bushels per acre)"
-                value={draft.yieldGoal}
-                onChange={(v) => update({ yieldGoal: v })}
-                min={20}
+                label={`Your ${lastCrop.crop.toLowerCase()} yield in ${lastCrop.year} (bushels per acre)`}
+                value={draft.lastYield}
+                onChange={(v) => update({ lastYield: v })}
+                min={0}
                 max={400}
-                hint={countyCornAvg ? `${countyName} has averaged ${countyCornAvg} bu/acre over the last 5 years.` : undefined}
+                hint={
+                  lastCrop.crop === 'Corn' && countyCornAvg
+                    ? `Lets us compare you with ${countyName}, which has averaged ${countyCornAvg} bu/acre of corn lately.`
+                    : `Lets us compare you with ${countyName}.`
+                }
               />
-              {lastCrop && (lastCrop.crop === 'Corn' || lastCrop.crop === 'Soybeans') && (
-                <NumberField
-                  label={`Your ${lastCrop.crop.toLowerCase()} yield in ${lastCrop.year} (optional)`}
-                  value={draft.lastYield}
-                  onChange={(v) => update({ lastYield: v })}
-                  min={0}
-                  max={400}
-                  hint={`Lets us compare you with ${countyName}.`}
+            </Question>
+          )}
+
+          {step === 'fertilizer' && (
+            <Question title="Fertilizer or manure for your next crop?">
+              <p className="text-base text-topsoil/80">Anything already applied since last harvest.</p>
+              <div className="mt-3">
+                <Choice
+                  selected={draft.noneApplied}
+                  onClick={() => update({ noneApplied: !draft.noneApplied })}
+                  label="Nothing applied yet"
                 />
+              </div>
+              {!draft.noneApplied && (
+                <>
+                  <div className="mt-3 space-y-3">
+                    {draft.amendments.map((a, i) => {
+                      const setRow = (patch: Partial<AmendmentDraft>) =>
+                        update({ amendments: draft.amendments.map((row, j) => (j === i ? { ...row, ...patch } : row)) });
+                      return (
+                        <div key={i} className="rounded-2xl bg-sand/35 p-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold">Application {i + 1}</p>
+                            <button
+                              onClick={() => update({ amendments: draft.amendments.filter((_, j) => j !== i) })}
+                              className="flex h-10 w-10 items-center justify-center rounded-full text-rust hover:bg-rust/10"
+                              aria-label={`Remove application ${i + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <TextField label="Product" value={a.product} onChange={(v) => setRow({ product: v })} placeholder="e.g. Anhydrous ammonia" />
+                          <div className="mt-2 grid grid-cols-2 items-end gap-2">
+                            <NumberField label="Rate" value={a.rate} onChange={(v) => setRow({ rate: v })} min={0} max={100000} />
+                            <label className="block">
+                              <span className="text-sm font-medium">Unit</span>
+                              <select
+                                value={a.unit}
+                                onChange={(e) => setRow({ unit: e.target.value })}
+                                className="mt-1 min-h-12 w-full rounded-xl bg-cream px-3 text-base ring-1 ring-clay/50"
+                              >
+                                {UNITS.map((u) => (
+                                  <option key={u}>{u}</option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          <DateField label="Date applied" value={a.date} onChange={(v) => setRow({ date: v })} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() =>
+                      update({ amendments: [...draft.amendments, { product: '', rate: '', unit: 'lb N/ac', date: '' }] })
+                    }
+                    disabled={draft.amendments.length >= 10}
+                    className="mt-3 flex min-h-12 items-center gap-2 rounded-xl px-3 text-base font-semibold text-field-green ring-2 ring-leaf/50 hover:bg-leaf/10"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                    Add an application
+                  </button>
+                </>
               )}
             </Question>
           )}
 
-          {step === 2 && (
-            <Question id="details-title" title="Fertilizer or manure for your next crop?">
-              <p className="text-base text-topsoil/80">Anything already applied since last harvest. Skip if none yet.</p>
-              <div className="mt-3 space-y-3">
-                {draft.amendments.map((a, i) => {
-                  const setRow = (patch: Partial<AmendmentDraft>) =>
-                    update({ amendments: draft.amendments.map((row, j) => (j === i ? { ...row, ...patch } : row)) });
-                  return (
-                    <div key={i} className="rounded-2xl bg-sand/35 p-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold">Application {i + 1}</p>
-                        <button
-                          onClick={() => update({ amendments: draft.amendments.filter((_, j) => j !== i) })}
-                          className="flex h-10 w-10 items-center justify-center rounded-full text-rust hover:bg-rust/10"
-                          aria-label={`Remove application ${i + 1}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <TextField label="Product" value={a.product} onChange={(v) => setRow({ product: v })} placeholder="e.g. Anhydrous ammonia" />
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <NumberField label="Rate" value={a.rate} onChange={(v) => setRow({ rate: v })} min={0} max={100000} />
-                        <label className="block">
-                          <span className="text-sm font-medium">Unit</span>
-                          <select
-                            value={a.unit}
-                            onChange={(e) => setRow({ unit: e.target.value })}
-                            className="mt-1 min-h-12 w-full rounded-xl bg-cream px-3 text-base ring-1 ring-clay/50"
-                          >
-                            {UNITS.map((u) => (
-                              <option key={u}>{u}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                      <DateField label="Date applied" value={a.date} onChange={(v) => setRow({ date: v })} />
-                    </div>
-                  );
-                })}
-              </div>
-              <button
-                onClick={() => update({ amendments: [...draft.amendments, { product: '', rate: '', unit: 'lb N/ac', date: '' }] })}
-                disabled={draft.amendments.length >= 10}
-                className="mt-3 flex min-h-12 items-center gap-2 rounded-xl px-3 text-base font-semibold text-field-green ring-2 ring-leaf/50 hover:bg-leaf/10"
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                Add an application
-              </button>
-            </Question>
-          )}
-
-          {step === 3 && (
-            <Question id="details-title" title="Do you have a lab soil test?">
+          {step === 'lab' && (
+            <Question title="Do you have a lab soil test?">
               <p className="text-base text-topsoil/80">
-                Copy what's on your report. This raises confidence the most and unlocks lime and fertilizer advice.
+                Copy what's on your report. This raises confidence the most and unlocks pH, lime and fertilizer advice.
               </p>
               <DateField label="Date sampled" value={draft.lab.sampleDate} onChange={(v) => updateLab({ sampleDate: v })} />
               <div className="mt-1 grid grid-cols-2 items-end gap-2">
@@ -310,11 +351,11 @@ export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCa
         </div>
 
         <div className="flex items-center gap-2 border-t border-clay/30 px-5 py-4">
-          {step > 0 && (
+          {index > 0 && (
             <button
               onClick={() => {
                 setError(null);
-                setStep(step - 1);
+                setIndex(index - 1);
               }}
               className="min-h-12 rounded-xl px-4 text-base font-medium text-topsoil hover:bg-sand/50"
             >
@@ -333,14 +374,32 @@ export function DetailsForm({ initial, lastCrop, countyCornAvg, countyName, onCa
   );
 }
 
-function Question({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+function Question({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <h2 id={id} className="mb-3 font-heading text-2xl leading-tight">
+      <h2 id="details-title" className="mb-3 font-heading text-2xl leading-tight">
         {title}
       </h2>
       {children}
     </div>
+  );
+}
+
+function Choice(props: { selected: boolean; onClick: () => void; label: string; hint?: string; center?: boolean }) {
+  return (
+    <button
+      onClick={props.onClick}
+      aria-pressed={props.selected}
+      className={`flex min-h-14 w-full items-center gap-3 rounded-2xl px-4 py-3 ring-2 transition-colors ${
+        props.center ? 'justify-center text-center' : 'text-left'
+      } ${props.selected ? 'bg-leaf/15 ring-leaf' : 'ring-clay/40 hover:bg-sand/40'}`}
+    >
+      <span>
+        <span className="block text-base font-semibold">{props.label}</span>
+        {props.hint && <span className="block text-sm text-topsoil/75">{props.hint}</span>}
+      </span>
+      {props.selected && !props.center && <Check className="ml-auto h-5 w-5 shrink-0 text-field-green" aria-hidden />}
+    </button>
   );
 }
 

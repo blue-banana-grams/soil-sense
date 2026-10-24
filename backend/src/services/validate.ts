@@ -1,9 +1,18 @@
-import type { Amendment, FarmerDetails, LabTest, PTestMethod, Tillage, YieldEntry } from '../types.js';
+import type {
+  Amendment,
+  FarmerDetails,
+  LabTest,
+  PondingFrequency,
+  PTestMethod,
+  Tillage,
+  YieldEntry,
+} from '../types.js';
 import { inLower48Box } from './geo.js';
 
 export class ValidationError extends Error {}
 
 const TILLAGE_TYPES = ['none', 'reduced', 'conventional'] as const;
+const PONDING: PondingFrequency[] = ['never', 'sometimes', 'often'];
 const P_METHODS: PTestMethod[] = ['Bray-P1', 'Mehlich-3', 'Olsen'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -89,6 +98,13 @@ function parseLabTest(v: unknown): LabTest {
   return lab;
 }
 
+function parsePonding(v: unknown): PondingFrequency {
+  if (!PONDING.includes(v as PondingFrequency)) {
+    throw new ValidationError('Ponding must be never, sometimes or often.');
+  }
+  return v as PondingFrequency;
+}
+
 export interface ReportRequest {
   lat: number;
   lng: number;
@@ -113,6 +129,7 @@ export function parseReportRequest(body: unknown): ReportRequest {
     amendments: d.amendments == null ? undefined : list(d.amendments, 'Fertilizer', 10, parseAmendment),
     yieldHistory: d.yieldHistory == null ? undefined : list(d.yieldHistory, 'Yields', 10, parseYield),
     labTest: d.labTest == null ? undefined : parseLabTest(d.labTest),
+    pondingOrSlowDrying: d.pondingOrSlowDrying == null ? undefined : parsePonding(d.pondingOrSlowDrying),
   };
   return { lat, lng, place, details };
 }

@@ -111,8 +111,8 @@ export function buildSeasonCalendar(climate: Climate, year: number): SeasonCalen
     growthStages,
     fertilizerTiming:
       v6 === null
-        ? 'Split nitrogen: about a third at planting, the rest sidedressed at V6.'
-        : `Split nitrogen: about a third at planting, the rest sidedressed around V6 (about ${iso(v6).slice(5).replace('-', '/')}).`,
+        ? 'Splitting nitrogen between planting and a V6 sidedress lowers losses.'
+        : `Splitting nitrogen between planting and a sidedress around V6 (about ${iso(v6).slice(5).replace('-', '/')}) lowers losses.`,
     harvestWindow: { start: iso(dates.harvestStart), end: iso(dates.harvestEnd) },
     coverCropWindow: { start: iso(dates.coverCropStart), end: iso(dates.coverCropEnd) },
     notes,

@@ -65,11 +65,15 @@ export interface Amendment {
   method: string;
 }
 
+export type PondingFrequency = 'never' | 'sometimes' | 'often';
+
 // Optional so incomplete input still returns whatever can be computed.
 export interface Management {
   tillage?: Measured<Tillage>;
   yieldGoalBuAc?: Measured<number>;
+  // An empty list means the farmer explicitly recorded "none applied".
   amendments?: Measured<Amendment[]>;
+  pondingOrSlowDrying?: Measured<PondingFrequency>;
 }
 
 export interface FieldRecord {
@@ -102,6 +106,7 @@ export interface FarmerDetails {
   amendments?: Amendment[];
   yieldHistory?: YieldEntry[];
   labTest?: LabTest;
+  pondingOrSlowDrying?: PondingFrequency;
 }
 
 export type ConfidenceLevel = 'High' | 'Medium' | 'Low';
@@ -251,6 +256,8 @@ export interface Report {
   management: Management;
   score: TopsoilScore;
   confidence: OverallConfidence;
+  // Kept separate from confidence, per the spec: how much advice the farmer's data unlocks.
+  completeness: { ready: number; total: number };
   rotation: RotationPlan;
   calendar: SeasonCalendar | null;
   thisWeek: ThisWeek | null;

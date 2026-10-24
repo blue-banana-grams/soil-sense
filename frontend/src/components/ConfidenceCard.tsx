@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ClipboardList, Minus } from 'lucide-react';
-import type { OverallConfidence } from '../types';
+import type { OverallConfidence, Report } from '../types';
 
 const LEVEL_COLOR: Record<OverallConfidence['level'], string> = {
   High: '#33502A',
@@ -7,23 +7,41 @@ const LEVEL_COLOR: Record<OverallConfidence['level'], string> = {
   Low: '#C2542D',
 };
 
-interface ConfidenceCardProps {
+export interface Snapshot {
   confidence: OverallConfidence;
-  previous: OverallConfidence | null;
-  canImprove: boolean;
-  improveLabel: string;
-  onImprove: () => void;
+  completeness: Report['completeness'];
 }
 
-export function ConfidenceCard({ confidence, previous, canImprove, improveLabel, onImprove }: ConfidenceCardProps) {
+interface ConfidenceCardProps {
+  current: Snapshot;
+  previous: Snapshot | null;
+  actionLabel: string;
+  onAction: () => void;
+}
+
+function changeMessage(current: Snapshot, previous: Snapshot): string | null {
+  const now = Math.round(current.confidence.value * 100);
+  const before = Math.round(previous.confidence.value * 100);
+  const unlocked = current.completeness.ready - previous.completeness.ready;
+  const parts: string[] = [];
+  if (now !== before) parts.push(`Confidence ${now > before ? 'up' : 'down'} from ${before}% to ${now}%`);
+  if (unlocked > 0) parts.push(`${unlocked} more piece${unlocked === 1 ? '' : 's'} of advice unlocked`);
+  if (parts.length === 0) return null;
+  return `${parts.join('. ')}.`;
+}
+
+export function ConfidenceCard({ current, previous, actionLabel, onAction }: ConfidenceCardProps) {
+  const { confidence, completeness } = current;
   const pct = Math.round(confidence.value * 100);
-  const prevPct = previous ? Math.round(previous.value * 100) : null;
+  const message = previous ? changeMessage(current, previous) : null;
+  const done = completeness.ready === completeness.total;
 
   return (
     <section className="rounded-2xl border border-clay/40 bg-cream p-4 sm:p-5" aria-labelledby="confidence-title">
       <p id="confidence-title" className="text-sm font-medium uppercase tracking-wide text-topsoil/60">
         How sure we are
       </p>
+      <p className="text-sm text-topsoil/70">How reliable the soil data behind your results is</p>
       <div className="mt-1 flex items-baseline gap-3">
         <p className="font-heading text-3xl" style={{ color: LEVEL_COLOR[confidence.level] }}>
           {confidence.level}
@@ -44,9 +62,9 @@ export function ConfidenceCard({ confidence, previous, canImprove, improveLabel,
         />
       </div>
 
-      {prevPct !== null && prevPct !== pct && (
+      {message && (
         <p className="mt-3 rounded-xl bg-field-green px-3 py-2 text-base font-medium text-cream" role="status">
-          {pct > prevPct ? 'Up' : 'Down'} from {previous!.level} {prevPct}% with what you told us.
+          {message}
         </p>
       )}
 
@@ -74,20 +92,33 @@ export function ConfidenceCard({ confidence, previous, canImprove, improveLabel,
         })}
       </ul>
 
-      {canImprove && (
-        <button
-          onClick={onImprove}
-          className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-corn-yellow px-4 text-base font-semibold text-soil-dark shadow-sm hover:brightness-105"
-        >
-          <ClipboardList className="h-5 w-5" aria-hidden />
-          {improveLabel}
-        </button>
-      )}
-      {canImprove && (
-        <p className="mt-2 text-center text-sm text-topsoil/70">
-          A few questions about your field. Every one is optional.
-        </p>
-      )}
+      <div className="mt-5 rounded-xl bg-sand/40 p-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-base font-semibold">Advice unlocked</p>
+          <p className="text-base font-semibold">
+            {completeness.ready} of {completeness.total}
+          </p>
+        </div>
+        <div className="mt-2 flex gap-1" aria-hidden>
+          {Array.from({ length: completeness.total }, (_, i) => (
+            <span key={i} className={`h-2 flex-1 rounded-full ${i < completeness.ready ? 'bg-leaf' : 'bg-cream'}`} />
+          ))}
+        </div>
+        {!done && (
+          <p className="mt-2 text-sm text-topsoil/75">
+            Answering a few questions unlocks more advice. A lab soil test also raises confidence.
+          </p>
+        )}
+      </div>
+
+      <button
+        onClick={onAction}
+        className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-corn-yellow px-4 text-base font-semibold text-soil-dark shadow-sm hover:brightness-105"
+      >
+        <ClipboardList className="h-5 w-5" aria-hidden />
+        {actionLabel}
+      </button>
+      <p className="mt-2 text-center text-sm text-topsoil/70">Every question is optional.</p>
     </section>
   );
 }

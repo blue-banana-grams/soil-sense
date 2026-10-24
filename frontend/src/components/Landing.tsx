@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LocateFixed, Smartphone, Sprout } from 'lucide-react';
+import { LocateFixed, Smartphone } from 'lucide-react';
 import { Header } from './Header';
 import { LocationSearch } from './LocationSearch';
 import type { ChosenLocation } from '../lib/route';
@@ -52,9 +52,7 @@ export function Landing({ embedded, onChoose }: LandingProps) {
 
       <main className="field-rows flex flex-1 flex-col items-center bg-topsoil px-4 pb-16 pt-12 sm:pt-20">
         <div className="w-full max-w-xl text-center text-cream">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-leaf text-cream">
-            <Sprout className="h-8 w-8" aria-hidden />
-          </span>
+          <img src="/logo.png" alt="SoilSense logo" className="mx-auto h-24 w-24 drop-shadow-lg" />
           <h1 className="mt-6 font-heading text-4xl leading-tight sm:text-5xl">How healthy is your topsoil?</h1>
           <p className="mt-4 text-lg text-sand/90">
             Tell us where your field is. We'll check USDA soil maps, satellite crop records and local

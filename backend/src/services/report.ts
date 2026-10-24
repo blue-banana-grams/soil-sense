@@ -20,7 +20,7 @@ import { buildThisWeek } from './season.js';
 import { locationFactors, totalAdjustment } from './locationConfidence.js';
 import { scoreField } from './scoring.js';
 import { planRotation } from './rotation.js';
-import { buildRecommendations } from './recommendations.js';
+import { buildRecommendations, completeness } from './recommendations.js';
 import { explainField } from './ai.js';
 
 const settledValue = <T>(r: PromiseSettledResult<T>): T | null => (r.status === 'fulfilled' ? r.value : null);
@@ -51,6 +51,9 @@ function managementFrom(details: FarmerDetails): Management {
     tillage: details.tillage ? farmer(details.tillage) : undefined,
     yieldGoalBuAc: details.yieldGoalBuAc ? farmer(details.yieldGoalBuAc, 'bu/ac') : undefined,
     amendments: details.amendments ? farmer(details.amendments) : undefined,
+    pondingOrSlowDrying: details.pondingOrSlowDrying
+      ? { value: details.pondingOrSlowDrying, tier: 'observation' }
+      : undefined,
   };
 }
 
@@ -63,9 +66,11 @@ function countyCornAverage(stats: CountyStats | null): number | null {
   return Math.round(years.reduce((sum, y) => sum + stats.yields.Corn[y], 0) / years.length);
 }
 
-// Every input behind the plan, so farmer entries and lab tests move the headline number.
+// The soil and crop data behind the results. Management answers are left out on
+// purpose: the spec scores them lower than map data and says to assess
+// completeness separately, so answering questions never lowers confidence.
 function headlineInputs(field: FieldRecord): Measured<unknown>[] {
-  const { soil, management } = field;
+  const { soil } = field;
   const candidates: (Measured<unknown> | undefined)[] = [
     soil.organicMatterPct,
     soil.topsoilDepthIn,
@@ -77,24 +82,15 @@ function headlineInputs(field: FieldRecord): Measured<unknown>[] {
     soil.phosphorusPpm,
     soil.potassiumPpm,
     soil.nitrateNPpm,
-    management.tillage,
-    management.yieldGoalBuAc,
-    management.amendments,
-    field.yieldHistory.value.length > 0 ? field.yieldHistory : undefined,
   ];
   return candidates.filter((m): m is Measured<unknown> => m !== undefined);
 }
 
-function dataFactor(field: FieldRecord, details: FarmerDetails): ConfidenceFactor {
-  const told: string[] = [];
-  if (details.tillage) told.push('tillage');
-  if (details.yieldGoalBuAc) told.push('yield goal');
-  if (details.amendments) told.push('fertilizer');
-  if (details.yieldHistory?.length) told.push('past yields');
-  const base = 'Starts from USDA soil maps and satellite crop records, which are area averages, not tests from your field.';
-  const lab = details.labTest ? ` Your lab soil test (${details.labTest.sampleDate}) counts the most.` : '';
-  const yours = told.length ? ` You added: ${told.join(', ')}.` : '';
-  return { label: 'Your data', detail: base + yours + lab, effect: 0 };
+function dataFactor(details: FarmerDetails): ConfidenceFactor {
+  const detail = details.labTest
+    ? `Includes your lab soil test from ${details.labTest.sampleDate}, the most reliable data there is.`
+    : 'Based on USDA soil maps and satellite crop records, which are area averages, not tests of your field. A lab soil test raises this the most.';
+  return { label: 'Soil data', detail, effect: 0 };
 }
 
 export async function buildReport(
@@ -168,7 +164,7 @@ export async function buildReport(
   const confidence: OverallConfidence = {
     ...headline,
     dataValue: combineConfidence(inputs).value,
-    factors: [dataFactor(field, details), ...factors],
+    factors: [dataFactor(details), ...factors],
   };
 
   const calendar = climate ? buildSeasonCalendar(climate, seasonYear) : null;
@@ -190,6 +186,7 @@ export async function buildReport(
     management: field.management,
     score,
     confidence,
+    completeness: completeness(recommendations),
     rotation,
     calendar,
     thisWeek,

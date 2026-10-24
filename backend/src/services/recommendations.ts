@@ -2,12 +2,15 @@ import type { FieldRecord, Measured, Recommendation, RotationPlan } from '../typ
 import { combineConfidence } from './confidence.js';
 import { continuousCornYears } from './scoring.js';
 
-// Placeholders: the spec's source gives no pH targets or nitrogen rates. Replace
-// with Iowa State guidance (e.g. PM 1688, MRTN) before anyone acts on them.
+// Placeholders: the spec's source gives no pH targets. Replace with regional
+// guidance (e.g. Iowa State PM 1688) before anyone acts on them.
 const PH_ACIDIC_BELOW = 6.0;
 const PH_ALKALINE_ABOVE = 7.3;
-const LB_N_PER_BU_GOAL = { low: 1.0, high: 1.2 };
-const SOYBEAN_N_CREDIT_LB = 50;
+
+// The spec forbids calculating a nitrogen rate without a validated regional
+// method and its mandatory inputs. None is wired in yet, so the nitrogen plan
+// gives general guidance only and doesn't count toward completeness.
+export const NITROGEN_METHOD_AVAILABLE = false;
 
 const isLab = (m: Measured<unknown> | undefined): m is Measured<unknown> => m?.tier === 'lab';
 
@@ -69,96 +72,71 @@ function phosphorusPotassiumRate(field: FieldRecord, adjustment: number): Recomm
   };
 }
 
-function nextCornYear(
-  field: FieldRecord,
-  rotation: RotationPlan,
-): { year: number; precedingCrop: string | null } | null {
+// The next corn year in the plan and the cash crop right before it.
+function nextCorn(field: FieldRecord, rotation: RotationPlan): { year: number; precedingCrop: string } | null {
   const history = [...field.cropHistory.value].sort((a, b) => a.year - b.year);
-  const lastYear = history.at(-1)?.year ?? 0;
-  const cashCrops = [...history, ...rotation.years.filter((y) => Number.isInteger(y.year))];
-  const index = cashCrops.findIndex((c) => c.year > lastYear && c.crop === 'Corn');
-  if (index < 0) return null;
-  return {
-    year: cashCrops[index].year,
-    precedingCrop: index > 0 ? cashCrops[index - 1].crop : null,
-  };
+  const planned = rotation.years.filter((y) => Number.isInteger(y.year));
+  const firstPlanned = planned[0]?.year ?? Infinity;
+  const cashCrops = [...history.filter((h) => h.year < firstPlanned), ...planned];
+  const index = cashCrops.findIndex((c) => c.year >= firstPlanned && c.crop === 'Corn');
+  return index > 0 ? { year: cashCrops[index].year, precedingCrop: cashCrops[index - 1].crop } : null;
 }
 
-function nitrogenPlan(field: FieldRecord, rotation: RotationPlan, adjustment: number): Recommendation {
-  const { cropHistory, management, soil } = field;
-  const nitrate = soil.nitrateNPpm;
-  const improvesWith = nitrate ? [] : ['Nitrate-N test'];
-  if (!management.amendments) improvesWith.push('Fertilizer, manure, compost, lime applied');
-
-  const missing: string[] = [];
-  if (cropHistory.value.length === 0) missing.push('Crop rotation (last 3 years)');
-  if (!management.yieldGoalBuAc) missing.push('Yield goal');
-
-  if (missing.length > 0 || !management.yieldGoalBuAc) {
-    return {
-      id: 'nitrogen_plan',
-      title: 'Nitrogen plan',
-      status: 'needs_data',
-      advice: 'Add your yield goal to get a nitrogen range for your next corn crop.',
-      confidence: null,
-      missing,
-      improvesWith,
-    };
+// General guidance only (spec Recommendation_Gates): no rate and no credits.
+function nitrogenPlan(field: FieldRecord, rotation: RotationPlan): Recommendation {
+  const corn = nextCorn(field, rotation);
+  const guidance: string[] = [
+    "SoilSense doesn't calculate nitrogen rates yet; that needs a validated method for your region, like your state extension's nitrogen calculator.",
+  ];
+  if (corn?.precedingCrop === 'Soybeans') {
+    guidance.push(`Your plan puts corn after soybeans in ${corn.year}, which usually needs less nitrogen than corn after corn; your state's method sets how much.`);
+  } else if (corn?.precedingCrop === 'Corn') {
+    guidance.push(`Your plan has corn after corn in ${corn.year}, which usually needs more nitrogen than corn after soybeans.`);
   }
-
-  const goal = management.yieldGoalBuAc.value;
-  const nextCorn = nextCornYear(field, rotation);
-  const afterSoybeans = nextCorn?.precedingCrop === 'Soybeans';
-  const credit = afterSoybeans ? SOYBEAN_N_CREDIT_LB : 0;
-
-  // Only count what was applied after the prior crop's harvest, for this corn crop.
-  const creditFrom = nextCorn ? `${nextCorn.year - 1}-08-01` : '';
-  const amendments = (management.amendments?.value ?? []).filter((a) => a.date >= creditFrom);
-  const appliedN = amendments
-    .filter((a) => a.unit === 'lb N/ac')
-    .reduce((sum, a) => sum + a.rate, 0);
-  const uncredited = amendments.filter((a) => a.unit !== 'lb N/ac').map((a) => a.product);
-
-  const low = Math.max(0, Math.round(goal * LB_N_PER_BU_GOAL.low - credit - appliedN));
-  const high = Math.max(0, Math.round(goal * LB_N_PER_BU_GOAL.high - credit - appliedN));
-
-  const cropLabel = nextCorn ? `${nextCorn.year} corn` : 'corn';
-  const parts = [`Estimate for ${cropLabel}: ${low}–${high} lb N/ac more for a ${goal} bu/ac goal`];
-  if (afterSoybeans) parts.push(`after a ${SOYBEAN_N_CREDIT_LB} lb soybean credit`);
-  if (appliedN > 0) parts.push(`minus ${appliedN} lb already applied`);
-  let advice = parts.join(', ') + '.';
-  if (uncredited.length > 0) {
-    advice += ` Not credited (needs a nutrient analysis): ${uncredited.join(', ')}.`;
-  }
-  if (nitrate) advice += ` Your soil test shows ${nitrate.value} ppm nitrate-N; ask your agronomist how much to credit.`;
-
-  const inputs: Measured<unknown>[] = [cropHistory, management.yieldGoalBuAc, soil.organicMatterPct];
-  if (management.amendments) inputs.push(management.amendments);
-  if (nitrate) inputs.push(nitrate);
-  const computed = combineConfidence(inputs, adjustment);
-  // Spec rule: without a nitrate test, the range is labeled low confidence.
-  const confidence = nitrate ? computed : { ...computed, level: 'Low' as const };
+  guidance.push('Splitting nitrogen between planting and a sidedress around V6 lowers the risk of losing it.');
 
   return {
     id: 'nitrogen_plan',
     title: 'Nitrogen plan',
-    status: 'ready',
-    advice,
-    confidence,
+    status: 'needs_data',
+    advice: guidance.join(' '),
+    confidence: null,
     missing: [],
-    improvesWith,
+    improvesWith: [],
   };
 }
 
-function compaction(): Recommendation {
+const PONDING_ADVICE = {
+  often:
+    'Ponding and slow spring drying point to compaction or poor drainage. Dig with a spade in a wet spot and look for a hard layer; limit traffic when soil is wet.',
+  sometimes:
+    'Occasional ponding can mean a compacted layer in the wettest spots. Check those with a spade or penetrometer.',
+  never:
+    "No sign of drainage trouble. Still check headlands and wheel tracks with a spade, where traffic compacts soil most.",
+} as const;
+
+function compaction(field: FieldRecord, adjustment: number): Recommendation {
+  const ponding = field.management.pondingOrSlowDrying;
+  const improvesWith = ['Compaction layer depth (spade or penetrometer)', 'Root condition', 'Soil smell', 'Bulk density'];
+  if (!ponding) {
+    return {
+      id: 'compaction',
+      title: 'Compaction',
+      status: 'needs_data',
+      advice: 'Tell us whether water ponds or the field dries slowly in spring, or check for a hard layer with a spade.',
+      confidence: null,
+      missing: ['Ponding / slow spring drying, or compaction layer depth'],
+      improvesWith,
+    };
+  }
   return {
     id: 'compaction',
     title: 'Compaction',
-    status: 'needs_data',
-    advice: 'Dig with a spade or push a penetrometer and note the depth where resistance jumps.',
-    confidence: null,
-    missing: ['Compaction layer depth, or ponding / slow spring drying'],
-    improvesWith: ['Root condition', 'Soil smell', 'Bulk density'],
+    status: 'ready',
+    advice: PONDING_ADVICE[ponding.value],
+    confidence: combineConfidence([ponding, field.soil.drainageClass], adjustment),
+    missing: [],
+    improvesWith,
   };
 }
 
@@ -211,35 +189,33 @@ function structureAndOrganicMatter(field: FieldRecord, adjustment: number): Reco
   };
 }
 
+// Spec: a screening flag only, and only from a lab test (or a field kit with method recorded).
 function phDirection(field: FieldRecord, adjustment: number): Recommendation {
   const { ph } = field.soil;
-  if (!ph) {
+  if (!ph || ph.tier !== 'lab') {
+    const mapped = ph ? ` USDA soil maps put typical pH for this soil around ${ph.value}, but that's an area average.` : '';
     return {
       id: 'ph_direction',
-      title: 'pH direction',
+      title: 'pH check',
       status: 'needs_data',
-      advice: 'The soil survey has no pH for this spot.',
+      advice: `A pH flag needs a test of your own soil.${mapped}`,
       confidence: null,
-      missing: ['Soil pH (lab test or field kit)'],
+      missing: ['Soil pH from a lab test'],
       improvesWith: [],
     };
   }
-  let advice: string;
-  if (ph.value < PH_ACIDIC_BELOW) {
-    advice = `pH ${ph.value} reads acidic. Confirm with a lab test before liming.`;
-  } else if (ph.value > PH_ALKALINE_ABOVE) {
-    advice = `pH ${ph.value} reads alkaline. Do not lime; confirm with a lab test.`;
-  } else {
-    advice = `pH ${ph.value} reads near optimal.`;
-  }
+  let flag: string;
+  if (ph.value < PH_ACIDIC_BELOW) flag = `Lab pH ${ph.value} reads acidic for corn.`;
+  else if (ph.value > PH_ALKALINE_ABOVE) flag = `Lab pH ${ph.value} reads alkaline; lime won't help.`;
+  else flag = `Lab pH ${ph.value} reads near optimal for corn.`;
   return {
     id: 'ph_direction',
-    title: 'pH direction',
+    title: 'pH check',
     status: 'ready',
-    advice,
+    advice: `${flag} This is a screening flag; a lime decision needs your lab's recommendation.`,
     confidence: combineConfidence([ph], adjustment),
     missing: [],
-    improvesWith: ph.tier === 'lab' ? [] : ['Lab soil pH'],
+    improvesWith: [],
   };
 }
 
@@ -250,10 +226,15 @@ export function buildRecommendations(
 ): Recommendation[] {
   return [
     structureAndOrganicMatter(field, confidenceAdjustment),
-    nitrogenPlan(field, rotation, confidenceAdjustment),
+    compaction(field, confidenceAdjustment),
     phDirection(field, confidenceAdjustment),
-    compaction(),
     limeRate(field, confidenceAdjustment),
     phosphorusPotassiumRate(field, confidenceAdjustment),
+    nitrogenPlan(field, rotation),
   ];
+}
+
+export function completeness(recommendations: Recommendation[]): { ready: number; total: number } {
+  const counted = recommendations.filter((r) => NITROGEN_METHOD_AVAILABLE || r.id !== 'nitrogen_plan');
+  return { ready: counted.filter((r) => r.status === 'ready').length, total: counted.length };
 }

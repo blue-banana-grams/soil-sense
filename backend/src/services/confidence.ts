@@ -1,15 +1,13 @@
 import type { Confidence, ConfidenceLevel, Measured, Tier } from '../types.js';
 
 // Placeholder values from the spec's Tiers sheet, pending agronomist calibration.
-// farmer_entry isn't a spec tier: 0.7 matches how the spec's Confidence_Calculator
-// scores farmer-entered rotation and yield goal.
 const TIER_BASE: Record<Tier, number> = {
   lab: 1,
   field_test: 0.7,
   auto: 0.6,
   field_kit: 0.5,
   observation: 0.35,
-  farmer_entry: 0.7,
+  farmer_entry: 0.5,
 };
 
 // Placeholder values from the spec's Confidence_Rules sheet.

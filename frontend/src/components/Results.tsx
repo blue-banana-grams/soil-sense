@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { CalendarDays, Check, Layers, MapPin, RefreshCw, Sprout, Wheat, type LucideIcon } from 'lucide-react';
-import type { FarmerDetails, OverallConfidence, Report } from '../types';
+import type { FarmerDetails, Report } from '../types';
 import { errorMessage, fetchReport } from '../lib/api';
 import type { ChosenLocation } from '../lib/route';
 import { Header } from './Header';
 import { LocationMap } from './LocationMap';
-import { ConfidenceCard } from './ConfidenceCard';
+import { ConfidenceCard, type Snapshot } from './ConfidenceCard';
 import { ThisWeekCard } from './ThisWeekCard';
 import { ScoreCard } from './ScoreCard';
 import { Recommendations } from './Recommendations';
@@ -62,7 +62,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
   const storageKey = `soilsense:details:${lat.toFixed(4)},${lng.toFixed(4)}`;
   const [details, setDetails] = useState<FarmerDetails>(() => loadDetails(storageKey));
   const [report, setReport] = useState<Report | null>(null);
-  const [previous, setPrevious] = useState<OverallConfidence | null>(null);
+  const [previous, setPrevious] = useState<Snapshot | null>(null);
   const [status, setStatus] = useState<'loading' | 'updating' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -91,7 +91,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
 
   const submitDetails = (next: FarmerDetails) => {
     setFormOpen(false);
-    setPrevious(report?.confidence ?? null);
+    setPrevious(report ? { confidence: report.confidence, completeness: report.completeness } : null);
     setStatus(report ? 'updating' : 'loading');
     saveDetails(storageKey, next);
     setDetails(next);
@@ -154,7 +154,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
 
   if (!report) return null;
 
-  const hasAllDetails = Boolean(details.tillage && details.yieldGoalBuAc && details.labTest);
+  const answeredAny = Object.values(details).some((v) => v !== undefined);
   const lastCrop = report.cropHistory.value.at(-1) ?? null;
   const unavailable = report.sources.filter((s) => !s.ok).map((s) => s.name);
 
@@ -179,11 +179,10 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
             </p>
           )}
           <ConfidenceCard
-            confidence={report.confidence}
+            current={{ confidence: report.confidence, completeness: report.completeness }}
             previous={previous}
-            canImprove
-            improveLabel={hasAllDetails ? 'Edit your field details' : 'Raise your confidence'}
-            onImprove={() => setFormOpen(true)}
+            actionLabel={answeredAny ? 'Edit your field details' : 'Tell us about your field'}
+            onAction={() => setFormOpen(true)}
           />
         </div>
 

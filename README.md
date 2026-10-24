@@ -14,10 +14,11 @@ Live: https://soil-sense-xi.vercel.app (phone preview: `/?view=phone`)
 2. **Results from public data.** The backend looks up that exact point and
    returns a topsoil score, a confidence level with a plain "why" list, a
    "This week on your field" card, a rotation plan and a season calendar.
-3. **Optional details.** "Raise your confidence" asks a few skippable
-   questions (tillage, yield goal, fertilizer, lab soil test). Answers raise
-   confidence and unlock more recommendations. They are kept in the
-   browser's local storage per location.
+3. **Optional details.** "Tell us about your field" asks a few skippable
+   questions (tillage, ponding, last season's yield, fertilizer, lab soil
+   test). Answers unlock more advice ("advice unlocked: 3 of 5"); a lab test
+   also raises confidence. They are kept in the browser's local storage per
+   location.
 
 ## What's here
 
@@ -64,14 +65,21 @@ unavailable. Lookups are cached in memory (`services/cache.ts`).
 
 ## Score, confidence & plan logic
 
-Inputs follow `corn_soil_algorithm_input_spec (2).xlsx` (draft v0.1). Every
-value is stored with its source tier (lab, field test, USDA map data, field
-kit, observation, farmer entry), unit, method and sample date. All weights
-and cutoffs are placeholders pending agronomist calibration.
+Inputs follow `corn_soil_algorithm_input_spec_corrected.xlsx` (draft v0.1,
+corrected). Every value is stored with its source tier (lab 1.0, field test
+0.7, USDA map data 0.6, field kit 0.5, farmer entry 0.5, observation 0.35),
+unit, method and sample date. All weights and cutoffs are placeholders
+pending agronomist calibration.
 
 - `services/confidence.ts` — the spec's confidence rules (tier base
   confidence, age and missing-method penalties, High/Medium/Low), plus a
-  location adjustment in percentage points.
+  location adjustment in percentage points. The headline number covers the
+  soil and crop data behind the results; completeness (how much advice the
+  farmer's answers unlock) is reported separately, as the spec asks.
+- **Nitrogen:** per the corrected spec, no rate is calculated without a
+  validated regional method and its mandatory inputs. None is wired in yet
+  (`NITROGEN_METHOD_AVAILABLE` in `services/recommendations.ts`), so the app
+  gives general guidance only.
 - `services/locationConfidence.ts` — location factors: whether satellite
   records show cropland, year-to-year rain variability, irrigated share of
   county corn, and frost-free season length vs corn's ~130 days.

@@ -128,11 +128,45 @@ export interface OverallConfidence extends Confidence {
   factors: ConfidenceFactor[];
 }
 
+export type ProblemKey =
+  | 'lowOrganicMatter'
+  | 'thinTopsoilOrErosion'
+  | 'continuousCorn'
+  | 'conventionalTillage'
+  | 'acidicPh'
+  | 'alkalinePh'
+  | 'ponding';
+
+export interface ScoreProblem {
+  key: ProblemKey;
+  reason: string;
+}
+
 export interface TopsoilScore {
   value: number;
   label: 'Healthy' | 'Watch' | 'At risk' | 'Depleted';
   reasons: string[];
+  problems: ScoreProblem[];
   confidence: Confidence;
+}
+
+export interface Evidence {
+  claim: string;
+  source: string;
+  url: string;
+}
+
+export interface Practice {
+  title: string;
+  what: string;
+  evidence: Evidence[];
+}
+
+// One kind of problem from the score, with the practices that address it.
+export interface FixGroup {
+  key: ProblemKey;
+  problems: string[];
+  practices: Practice[];
 }
 
 export type RecommendationId =
@@ -255,6 +289,7 @@ export interface Report {
   yieldHistory: Measured<YieldEntry[]>;
   management: Management;
   score: TopsoilScore;
+  fixes: FixGroup[];
   confidence: OverallConfidence;
   // Kept separate from confidence, per the spec: how much advice the farmer's data unlocks.
   completeness: { ready: number; total: number };

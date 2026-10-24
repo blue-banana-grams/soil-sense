@@ -8,6 +8,7 @@ import { LocationMap } from './LocationMap';
 import { ConfidenceCard, type Snapshot } from './ConfidenceCard';
 import { ThisWeekCard } from './ThisWeekCard';
 import { ScoreCard } from './ScoreCard';
+import { HowToFix } from './HowToFix';
 import { Recommendations } from './Recommendations';
 import { RotationPlan } from './RotationPlan';
 import { CountyComparison } from './CountyComparison';
@@ -249,6 +250,7 @@ export function Results({ location, embedded, onMove, onChangeLocation }: Result
                 </div>
                 {report.thisWeek && <ThisWeekCard week={report.thisWeek} />}
                 <ScoreCard score={report.score} />
+                <HowToFix groups={report.fixes} />
                 <Recommendations items={report.recommendations} onAdd={(step) => setForm({ step })} />
               </>
             )}

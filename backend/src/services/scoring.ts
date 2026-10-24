@@ -1,4 +1,4 @@
-import type { CropHistoryEntry, FieldRecord, Measured, TopsoilScore } from '../types.js';
+import type { CropHistoryEntry, FieldRecord, Measured, ProblemKey, ScoreProblem, TopsoilScore } from '../types.js';
 import { combineConfidence } from './confidence.js';
 import { PH_ACIDIC_BELOW, PH_ALKALINE_ABOVE } from './thresholds.js';
 
@@ -39,7 +39,8 @@ export function scoreField(field: FieldRecord, confidenceAdjustment = 0): Topsoi
   const topsoilDepth = soil.topsoilDepthIn.value;
   const slope = soil.slopePct.value;
   const erosionClass = soil.erosionClass.value;
-  const problems: string[] = [];
+  const problems: ScoreProblem[] = [];
+  const add = (key: ProblemKey, reason: string) => problems.push({ key, reason });
   const strengths: string[] = [];
   const inputs: Measured<unknown>[] = [soil.organicMatterPct, soil.topsoilDepthIn, soil.slopePct, soil.erosionClass, cropHistory];
 
@@ -48,32 +49,32 @@ export function scoreField(field: FieldRecord, confidenceAdjustment = 0): Topsoi
   const omPenalty = Math.max(0, (4 - organicMatter) * 10);
   if (omPenalty > 0) {
     value -= omPenalty;
-    problems.push(`Organic matter is ${organicMatter}%, below the 4% target for resilient corn ground.`);
+    add('lowOrganicMatter', `Organic matter is ${organicMatter}%, below the 4% target for resilient corn ground.`);
   }
 
   const depthPenalty = Math.max(0, (12 - topsoilDepth) * 3);
   if (depthPenalty > 0) {
     value -= depthPenalty;
-    problems.push(`Topsoil is only ${topsoilDepth} in deep, thinner than the 12 in benchmark.`);
+    add('thinTopsoilOrErosion', `Topsoil is only ${topsoilDepth} in deep, thinner than the 12 in benchmark.`);
   }
 
   const slopePenalty = Math.max(0, (slope - 3) * 2.5);
   if (slopePenalty > 0) {
     value -= slopePenalty;
-    problems.push(`Slope of ${slope}% raises runoff and erosion risk.`);
+    add('thinTopsoilOrErosion', `Slope of ${slope}% raises runoff and erosion risk.`);
   }
 
   const erosionPenalty = EROSION_PENALTY[erosionClass] ?? 0;
   if (erosionPenalty > 0) {
     value -= erosionPenalty;
-    problems.push(`Erosion class is rated "${erosionClass}".`);
+    add('thinTopsoilOrErosion', `Erosion class is rated "${erosionClass}".`);
   }
 
   const cornStreak = continuousCornYears(cropHistory.value);
   const cornPenalty = Math.min(25, Math.max(0, cornStreak - 1) * 6);
   if (cornPenalty > 0) {
     value -= cornPenalty;
-    problems.push(`${cornStreak} straight years of corn are drawing down organic matter faster than it rebuilds.`);
+    add('continuousCorn', `${cornStreak} straight years of corn are drawing down organic matter faster than it rebuilds.`);
   }
 
   // Only a tested pH counts; the soil map's area average isn't enough to judge a field (spec pH gate).
@@ -82,10 +83,10 @@ export function scoreField(field: FieldRecord, confidenceAdjustment = 0): Topsoi
     inputs.push(ph);
     if (ph.value < PH_ACIDIC_BELOW) {
       value -= Math.min(PH_PENALTY_MAX, (PH_ACIDIC_BELOW - ph.value) * PH_PENALTY_PER_UNIT);
-      problems.push(`Tested pH ${ph.value} is acidic, which locks up nutrients and slows soil life.`);
+      add('acidicPh', `Tested pH ${ph.value} is acidic, which locks up nutrients and slows soil life.`);
     } else if (ph.value > PH_ALKALINE_ABOVE) {
       value -= Math.min(PH_PENALTY_MAX, (ph.value - PH_ALKALINE_ABOVE) * PH_PENALTY_PER_UNIT);
-      problems.push(`Tested pH ${ph.value} is alkaline, which ties up phosphorus and micronutrients.`);
+      add('alkalinePh', `Tested pH ${ph.value} is alkaline, which ties up phosphorus and micronutrients.`);
     } else {
       strengths.push(`Tested pH ${ph.value} is in a good range for corn.`);
     }
@@ -99,13 +100,14 @@ export function scoreField(field: FieldRecord, confidenceAdjustment = 0): Topsoi
     const penalty = TILLAGE_PENALTY[type] + (type === 'conventional' && steep ? STEEP_CONVENTIONAL_EXTRA : 0);
     value -= penalty;
     if (type === 'conventional') {
-      problems.push(
+      add(
+        'conventionalTillage',
         steep
           ? 'Conventional tillage on this slope breaks down soil structure and leaves it open to erosion.'
           : 'Conventional tillage breaks down soil structure and burns off organic matter.',
       );
     } else if (type === 'reduced') {
-      problems.push('Reduced tillage still disturbs some soil; no-till would protect it more.');
+      add('conventionalTillage', 'Reduced tillage still disturbs some soil; no-till would protect it more.');
     } else {
       strengths.push('No-till is protecting your topsoil.');
     }
@@ -115,17 +117,18 @@ export function scoreField(field: FieldRecord, confidenceAdjustment = 0): Topsoi
   if (ponding) {
     inputs.push(ponding);
     value -= PONDING_PENALTY[ponding.value];
-    if (ponding.value === 'often') problems.push('Frequent ponding points to compaction or poor drainage.');
-    if (ponding.value === 'sometimes') problems.push('Occasional ponding can mean compacted spots.');
+    if (ponding.value === 'often') add('ponding', 'Frequent ponding points to compaction or poor drainage.');
+    if (ponding.value === 'sometimes') add('ponding', 'Occasional ponding can mean compacted spots.');
   }
 
-  const reasons = problems.length > 0 ? [...problems, ...strengths] : ['Soil and rotation history both look within healthy ranges.', ...strengths];
+  const reasons = problems.length > 0 ? [...problems.map((p) => p.reason), ...strengths] : ['Soil and rotation history both look within healthy ranges.', ...strengths];
   value = Math.max(0, Math.min(100, Math.round(value)));
 
   return {
     value,
     label: labelFor(value),
     reasons,
+    problems,
     confidence: combineConfidence(inputs, confidenceAdjustment),
   };
 }

@@ -22,6 +22,19 @@ import { scoreField } from './scoring.js';
 import { planRotation } from './rotation.js';
 import { buildRecommendations, completeness } from './recommendations.js';
 import { explainField } from './ai.js';
+import { FIXES } from '../data/fixes.js';
+import type { FixGroup, ScoreProblem } from '../types.js';
+
+// One group per kind of problem, in the order the score lists them.
+function fixesFor(problems: ScoreProblem[]): FixGroup[] {
+  const groups = new Map<ScoreProblem['key'], FixGroup>();
+  for (const { key, reason } of problems) {
+    const group = groups.get(key) ?? { key, problems: [], practices: FIXES[key] };
+    group.problems.push(reason);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
 
 const settledValue = <T>(r: PromiseSettledResult<T>): T | null => (r.status === 'fulfilled' ? r.value : null);
 
@@ -190,6 +203,7 @@ export async function buildReport(
     yieldHistory: field.yieldHistory,
     management: field.management,
     score,
+    fixes: fixesFor(score.problems),
     confidence,
     completeness: completeness(recommendations),
     rotation,

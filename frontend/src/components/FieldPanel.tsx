@@ -6,6 +6,7 @@ import { RotationPlan } from './RotationPlan';
 import { SeasonCalendar } from './SeasonCalendar';
 import { Recommendations } from './Recommendations';
 import { SoilProfile } from './SoilProfile';
+import { CountyComparison } from './CountyComparison';
 
 type TabId = 'overview' | 'plan' | 'season' | 'soil';
 
@@ -92,7 +93,12 @@ function FieldDetailView({ field, onClose }: { field: FieldDetail; onClose: () =
             <Recommendations items={field.recommendations} />
           </>
         )}
-        {tab === 'plan' && <RotationPlan plan={field.rotation} />}
+        {tab === 'plan' && (
+          <>
+            <RotationPlan plan={field.rotation} />
+            {field.countyBenchmark && <CountyComparison benchmark={field.countyBenchmark} />}
+          </>
+        )}
         {tab === 'season' && <SeasonCalendar calendar={field.calendar} />}
         {tab === 'soil' && <SoilProfile field={field} />}
       </div>

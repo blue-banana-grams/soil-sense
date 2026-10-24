@@ -5,6 +5,7 @@ import { planRotation } from '../services/rotation.js';
 import { buildSeasonCalendar } from '../services/calendar.js';
 import { explainField } from '../services/ai.js';
 import { buildRecommendations } from '../services/recommendations.js';
+import { compareToCounty, getStoryCountyYields } from '../services/nass.js';
 import type { FieldDetail, FieldSummary } from '../types.js';
 
 export const fieldsRouter = Router();
@@ -21,7 +22,7 @@ fieldsRouter.get('/', (_req, res) => {
   res.json(summaries);
 });
 
-fieldsRouter.get('/:id', (req, res) => {
+fieldsRouter.get('/:id', async (req, res) => {
   const field = fetchFieldById(req.params.id);
   if (!field) {
     res.status(404).json({ error: 'Field not found' });
@@ -33,6 +34,8 @@ fieldsRouter.get('/:id', (req, res) => {
   const calendar = buildSeasonCalendar(new Date().getFullYear() + 1);
   const recommendations = buildRecommendations(field, rotation);
   const aiExplanation = explainField(field, score, rotation);
+  const countyYields = await getStoryCountyYields();
+  const countyBenchmark = countyYields ? compareToCounty(field, countyYields) : null;
 
   const detail: FieldDetail = {
     ...field,
@@ -40,6 +43,7 @@ fieldsRouter.get('/:id', (req, res) => {
     rotation,
     calendar,
     recommendations,
+    countyBenchmark,
     aiExplanation,
   };
 

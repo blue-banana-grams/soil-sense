@@ -137,11 +137,26 @@ export interface SeasonCalendar {
   coverCropWindow: { start: string; end: string };
 }
 
+export interface YieldComparison {
+  year: number;
+  crop: 'Corn' | 'Soybeans';
+  fieldBuAc: number;
+  countyBuAc: number;
+}
+
+export interface CountyBenchmark {
+  county: string;
+  source: string;
+  summary: string;
+  years: YieldComparison[];
+}
+
 export interface FieldDetail extends FieldRecord {
   score: TopsoilScore;
   rotation: RotationPlan;
   calendar: SeasonCalendar;
   recommendations: Recommendation[];
+  countyBenchmark: CountyBenchmark | null;
   aiExplanation: string;
 }
 

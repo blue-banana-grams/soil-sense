@@ -30,6 +30,11 @@ cd frontend && npm install && npm run dev
 Frontend runs on http://localhost:5173 and proxies `/api` to the backend
 on http://localhost:4000.
 
+For county yield comparisons, copy `backend/.env.example` to `backend/.env`
+and add a free USDA NASS Quick Stats key
+(https://quickstats.nass.usda.gov/api). Without it, the app works and just
+hides the comparison. `.env` is git-ignored; never commit the key.
+
 ## Data sources (to wire in, all free)
 
 - USDA SSURGO / Soil Data Access — organic matter, topsoil depth, slope, drainage, erosion

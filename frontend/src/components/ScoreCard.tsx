@@ -1,6 +1,5 @@
 import type { TopsoilScore } from '../types';
 import { SCORE_MEANING, scoreColor } from '../lib/score';
-import { ConfidenceBadge } from './ConfidenceBadge';
 
 export function ScoreCard({ score }: { score: TopsoilScore }) {
   const lightFill = score.value < 35;
@@ -18,9 +17,6 @@ export function ScoreCard({ score }: { score: TopsoilScore }) {
         <div className="min-w-0">
           <p className="text-sm font-medium uppercase tracking-wide text-topsoil/60">Topsoil health</p>
           <p className="font-heading text-2xl leading-tight">{score.label}</p>
-          <div className="mt-1">
-            <ConfidenceBadge confidence={score.confidence} />
-          </div>
         </div>
       </div>
       <p className="mt-3 text-base font-medium">{SCORE_MEANING[score.label]}</p>

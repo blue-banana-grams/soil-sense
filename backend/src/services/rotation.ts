@@ -1,11 +1,12 @@
 import type { FieldRecord, RotationPlan } from '../types.js';
 import { continuousCornYears } from './scoring.js';
 
-export function planRotation(field: FieldRecord): RotationPlan {
+// startYear is the next season to plan for; crop records can lag a year behind it.
+export function planRotation(field: FieldRecord, startYear?: number): RotationPlan {
   const { soil, cropHistory, management } = field;
   const sorted = [...cropHistory.value].sort((a, b) => b.year - a.year);
   const lastCrop = sorted[0]?.crop ?? 'Corn';
-  const lastYear = sorted[0]?.year ?? new Date().getFullYear();
+  const lastYear = Math.max(sorted[0]?.year ?? 0, (startYear ?? new Date().getFullYear() + 1) - 1);
   const cornStreak = continuousCornYears(cropHistory.value);
 
   const lowOrganicMatter = soil.organicMatterPct.value < 3.5;

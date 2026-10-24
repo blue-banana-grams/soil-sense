@@ -1,25 +1,27 @@
-import type { FieldRecord, RotationPlan, TopsoilScore } from '../types.js';
+import type { Confidence, RotationPlan, TopsoilScore } from '../types.js';
 
-// Template-based stand-in for the AI explanation. Swap the body of this
-// function for a real call to an LLM (pass in score + rotation + field as
-// context) once an API key is wired up; keep the signature the same so the
-// route doesn't need to change.
+// Template-based stand-in for the AI explanation. Swap the body for a real LLM
+// call (pass in the report as context) once an API key is wired up.
 export function explainField(
-  field: FieldRecord,
+  place: string,
   score: TopsoilScore,
   rotation: RotationPlan,
+  confidence: Confidence,
 ): string {
-  const nextYear = rotation.years[0];
   const scoreLine =
     score.label === 'Healthy'
-      ? `${field.name} is in good shape — a ${score.value}/100 topsoil score.`
-      : `${field.name} is showing signs of soil stress — a ${score.value}/100 topsoil score (${score.label.toLowerCase()}).`;
+      ? `The topsoil at your spot near ${place} looks healthy: ${score.value}/100.`
+      : `The topsoil at your spot near ${place} is showing stress: ${score.value}/100 (${score.label.toLowerCase()}).`;
 
+  const nextYear = rotation.years[0];
   const actionLine = nextYear
-    ? `Plant ${nextYear.crop} in ${nextYear.year}: ${nextYear.why.toLowerCase()}`
-    : 'Stick with the current rotation.';
+    ? `Plant ${nextYear.crop.toLowerCase()} in ${nextYear.year}: ${nextYear.why.charAt(0).toLowerCase()}${nextYear.why.slice(1)}`
+    : 'Stick with your current rotation.';
 
-  const confidenceLine = `${score.confidence.level} confidence in this score, based on how the soil data was collected.`;
+  const confidenceLine =
+    confidence.level === 'High'
+      ? 'We are fairly sure about this.'
+      : 'This is based mostly on USDA maps and satellite records. Telling us about your field will sharpen it.';
 
   return `${scoreLine} ${actionLine} ${confidenceLine}`;
 }

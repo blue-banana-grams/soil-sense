@@ -9,28 +9,62 @@ const PH_ALKALINE_ABOVE = 7.3;
 const LB_N_PER_BU_GOAL = { low: 1.0, high: 1.2 };
 const SOYBEAN_N_CREDIT_LB = 50;
 
-function limeRate(field: FieldRecord): Recommendation {
-  const missing = ['Lab buffer pH'];
-  if (field.soil.ph.tier !== 'lab') missing.unshift('Lab soil pH');
+const isLab = (m: Measured<unknown> | undefined): m is Measured<unknown> => m?.tier === 'lab';
+
+function limeRate(field: FieldRecord, adjustment: number): Recommendation {
+  const { ph, bufferPh } = field.soil;
+  const missing: string[] = [];
+  if (!isLab(ph)) missing.push('Lab soil pH');
+  if (!isLab(bufferPh)) missing.push('Lab buffer pH');
+
+  if (missing.length > 0 || !ph || !bufferPh) {
+    return {
+      id: 'lime_rate',
+      title: 'Lime rate',
+      status: 'needs_data',
+      advice: 'No lime rate without a lab soil test that includes buffer pH.',
+      confidence: null,
+      missing,
+      improvesWith: [],
+    };
+  }
   return {
     id: 'lime_rate',
     title: 'Lime rate',
-    status: 'needs_data',
-    advice: 'No lime rate without a lab soil test that includes buffer pH.',
-    confidence: null,
-    missing,
+    status: 'ready',
+    advice:
+      ph.value >= PH_ACIDIC_BELOW
+        ? `Lab pH ${ph.value} doesn't call for lime right now.`
+        : `Lab pH ${ph.value}, buffer pH ${bufferPh.value}. Use the lime rate on your lab report; SoilSense doesn't calculate lime rates yet.`,
+    confidence: combineConfidence([ph, bufferPh], adjustment),
+    missing: [],
     improvesWith: [],
   };
 }
 
-function phosphorusPotassiumRate(): Recommendation {
+function phosphorusPotassiumRate(field: FieldRecord, adjustment: number): Recommendation {
+  const { phosphorusPpm: p, potassiumPpm: k } = field.soil;
+  if (!p || !k) {
+    return {
+      id: 'phosphorus_potassium_rate',
+      title: 'Phosphorus & potassium rate',
+      status: 'needs_data',
+      advice: 'No phosphorus or potassium rate without a lab soil test.',
+      confidence: null,
+      missing: [
+        ...(p ? [] : ['Lab phosphorus test (with test method)']),
+        ...(k ? [] : ['Lab potassium test']),
+      ],
+      improvesWith: [],
+    };
+  }
   return {
     id: 'phosphorus_potassium_rate',
     title: 'Phosphorus & potassium rate',
-    status: 'needs_data',
-    advice: 'No phosphorus or potassium rate without a lab soil test.',
-    confidence: null,
-    missing: ['Lab phosphorus test (with test method)', 'Lab potassium test (with test method)'],
+    status: 'ready',
+    advice: `Phosphorus ${p.value} ppm (${p.method}), potassium ${k.value} ppm. Use the rates on your lab report or your state's extension tables; SoilSense doesn't calculate P and K rates yet.`,
+    confidence: combineConfidence([p, k], adjustment),
+    missing: [],
     improvesWith: [],
   };
 }
@@ -50,9 +84,10 @@ function nextCornYear(
   };
 }
 
-function nitrogenPlan(field: FieldRecord, rotation: RotationPlan): Recommendation {
+function nitrogenPlan(field: FieldRecord, rotation: RotationPlan, adjustment: number): Recommendation {
   const { cropHistory, management, soil } = field;
-  const improvesWith = ['Nitrate-N test'];
+  const nitrate = soil.nitrateNPpm;
+  const improvesWith = nitrate ? [] : ['Nitrate-N test'];
   if (!management.amendments) improvesWith.push('Fertilizer, manure, compost, lime applied');
 
   const missing: string[] = [];
@@ -64,7 +99,7 @@ function nitrogenPlan(field: FieldRecord, rotation: RotationPlan): Recommendatio
       id: 'nitrogen_plan',
       title: 'Nitrogen plan',
       status: 'needs_data',
-      advice: 'Add your yield goal to get a nitrogen range for next corn crop.',
+      advice: 'Add your yield goal to get a nitrogen range for your next corn crop.',
       confidence: null,
       missing,
       improvesWith,
@@ -95,12 +130,14 @@ function nitrogenPlan(field: FieldRecord, rotation: RotationPlan): Recommendatio
   if (uncredited.length > 0) {
     advice += ` Not credited (needs a nutrient analysis): ${uncredited.join(', ')}.`;
   }
+  if (nitrate) advice += ` Your soil test shows ${nitrate.value} ppm nitrate-N; ask your agronomist how much to credit.`;
 
   const inputs: Measured<unknown>[] = [cropHistory, management.yieldGoalBuAc, soil.organicMatterPct];
   if (management.amendments) inputs.push(management.amendments);
-  const computed = combineConfidence(inputs);
+  if (nitrate) inputs.push(nitrate);
+  const computed = combineConfidence(inputs, adjustment);
   // Spec rule: without a nitrate test, the range is labeled low confidence.
-  const confidence = { ...computed, level: 'Low' as const };
+  const confidence = nitrate ? computed : { ...computed, level: 'Low' as const };
 
   return {
     id: 'nitrogen_plan',
@@ -125,7 +162,7 @@ function compaction(): Recommendation {
   };
 }
 
-function structureAndOrganicMatter(field: FieldRecord): Recommendation {
+function structureAndOrganicMatter(field: FieldRecord, adjustment: number): Recommendation {
   const { cropHistory, management, soil } = field;
   const improvesWith = ['Aggregate stability', 'Infiltration time', 'Earthworm count'];
   const tillage = management.tillage;
@@ -138,7 +175,7 @@ function structureAndOrganicMatter(field: FieldRecord): Recommendation {
       id: 'structure_organic_matter',
       title: 'Structure & organic matter',
       status: 'needs_data',
-      advice: 'Add your tillage type to get structure and organic matter advice.',
+      advice: 'Tell us how you till to get structure and organic matter advice.',
       confidence: null,
       missing,
       improvesWith,
@@ -158,9 +195,7 @@ function structureAndOrganicMatter(field: FieldRecord): Recommendation {
   } else {
     actions.push('Keep no-till: it is protecting your topsoil.');
   }
-  if (!cropHistory.value.some((c) => c.crop === 'Cover crop')) {
-    actions.push('Add a cover crop after harvest.');
-  }
+  actions.push('Add a cover crop after harvest.');
   if (continuousCornYears(cropHistory.value) > 1) {
     actions.push('Rotate out of continuous corn.');
   }
@@ -170,14 +205,25 @@ function structureAndOrganicMatter(field: FieldRecord): Recommendation {
     title: 'Structure & organic matter',
     status: 'ready',
     advice: actions.join(' '),
-    confidence: combineConfidence([tillage, cropHistory, soil.organicMatterPct]),
+    confidence: combineConfidence([tillage, cropHistory, soil.organicMatterPct], adjustment),
     missing: [],
     improvesWith,
   };
 }
 
-function phDirection(field: FieldRecord): Recommendation {
+function phDirection(field: FieldRecord, adjustment: number): Recommendation {
   const { ph } = field.soil;
+  if (!ph) {
+    return {
+      id: 'ph_direction',
+      title: 'pH direction',
+      status: 'needs_data',
+      advice: 'The soil survey has no pH for this spot.',
+      confidence: null,
+      missing: ['Soil pH (lab test or field kit)'],
+      improvesWith: [],
+    };
+  }
   let advice: string;
   if (ph.value < PH_ACIDIC_BELOW) {
     advice = `pH ${ph.value} reads acidic. Confirm with a lab test before liming.`;
@@ -191,7 +237,7 @@ function phDirection(field: FieldRecord): Recommendation {
     title: 'pH direction',
     status: 'ready',
     advice,
-    confidence: combineConfidence([ph]),
+    confidence: combineConfidence([ph], adjustment),
     missing: [],
     improvesWith: ph.tier === 'lab' ? [] : ['Lab soil pH'],
   };
@@ -200,13 +246,14 @@ function phDirection(field: FieldRecord): Recommendation {
 export function buildRecommendations(
   field: FieldRecord,
   rotation: RotationPlan,
+  confidenceAdjustment = 0,
 ): Recommendation[] {
   return [
-    structureAndOrganicMatter(field),
-    nitrogenPlan(field, rotation),
-    phDirection(field),
+    structureAndOrganicMatter(field, confidenceAdjustment),
+    nitrogenPlan(field, rotation, confidenceAdjustment),
+    phDirection(field, confidenceAdjustment),
     compaction(),
-    limeRate(field),
-    phosphorusPotassiumRate(),
+    limeRate(field, confidenceAdjustment),
+    phosphorusPotassiumRate(field, confidenceAdjustment),
   ];
 }

@@ -21,9 +21,9 @@ function useFitScale(margin: number): number {
 }
 
 const STEPS = [
-  'Tap a field on the map, or pick one from "Your fields".',
-  'See your topsoil health score and what is driving it.',
-  'Follow the plan: what to plant, when, and what to fix first.',
+  'Type your town or ZIP code, or share your location.',
+  'See your topsoil health and how sure we are, from USDA soil maps, satellite crop records and local weather.',
+  'Answer a few optional questions to raise your confidence and unlock more advice.',
 ];
 
 export function PhoneDemo() {
@@ -95,6 +95,7 @@ export function PhoneDemo() {
             <iframe
               src="/?embed=1"
               title="SoilSense running on a phone"
+              allow="geolocation"
               className="block w-full border-0"
               style={{ height: SCREEN.height - STATUS_BAR }}
             />

@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
-import type { FieldDetail, Measured, Tier } from '../types';
+import type { Measured, Report, Tier } from '../types';
 import { RUNOFF_RISK } from '../lib/format';
 
 const TIER_LABEL: Record<Tier, string> = {
-  lab: 'Lab test',
+  lab: 'Your lab test',
   field_test: 'Field test',
-  auto: 'USDA soil map',
+  auto: 'USDA soil survey',
   field_kit: 'Field kit',
   observation: 'Your observation',
   farmer_entry: 'You told us',
@@ -13,14 +13,16 @@ const TIER_LABEL: Record<Tier, string> = {
 
 const TILLAGE_LABEL = { none: 'No-till', reduced: 'Reduced tillage', conventional: 'Conventional tillage' };
 
-export function SoilProfile({ field }: { field: FieldDetail }) {
-  const { soil, management } = field;
+export function SoilProfile({ report }: { report: Report }) {
+  const { soil, management, cropHistory } = report;
   const tillage = management.tillage;
   const amendments = management.amendments;
+  const group = soil.hydrologicGroup.value;
+  const runoff = RUNOFF_RISK[group.charAt(0)];
 
   return (
     <>
-      <Section title="Your soil">
+      <Section title="Your soil" subtitle={soil.mapUnitComponent}>
         <Row label="Organic matter" input={soil.organicMatterPct} />
         <Row label="Topsoil depth" input={soil.topsoilDepthIn} />
         <Row label="Slope" input={soil.slopePct} />
@@ -32,8 +34,25 @@ export function SoilProfile({ field }: { field: FieldDetail }) {
         <Row
           label="Runoff risk"
           input={soil.hydrologicGroup}
-          display={`${RUNOFF_RISK[soil.hydrologicGroup.value]} (group ${soil.hydrologicGroup.value})`}
+          display={runoff ? `${runoff} (group ${group})` : group}
         />
+        {soil.bufferPh && <Row label="Buffer pH" input={soil.bufferPh} />}
+        {soil.phosphorusPpm && <Row label={`Phosphorus (${soil.phosphorusPpm.method})`} input={soil.phosphorusPpm} />}
+        {soil.potassiumPpm && <Row label="Potassium" input={soil.potassiumPpm} />}
+        {soil.nitrateNPpm && <Row label="Nitrate-N" input={soil.nitrateNPpm} />}
+      </Section>
+
+      <Section title="What's grown here" subtitle="From USDA CropScape satellite records">
+        {cropHistory.value.length === 0 ? (
+          <p className="py-2.5 text-base text-topsoil/80">Satellite crop records weren't available for this spot.</p>
+        ) : (
+          cropHistory.value.map((c) => (
+            <div key={c.year} className="flex justify-between py-2.5 text-base">
+              <dt className="text-topsoil/80">{c.year}</dt>
+              <dd className="font-semibold">{c.crop}</dd>
+            </div>
+          ))
+        )}
       </Section>
 
       <Section title="How you farm it">
@@ -59,17 +78,18 @@ export function SoilProfile({ field }: { field: FieldDetail }) {
       </Section>
 
       <p className="px-1 text-sm text-topsoil/70">
-        Values from USDA soil maps are averages for the area, not your exact field. A lab soil test
+        USDA soil survey values describe the typical soil mapped at this spot, not a test of your field. A lab soil test
         makes every recommendation more accurate.
       </p>
     </>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <div className="rounded-2xl border border-clay/40 bg-cream p-4">
       <p className="font-heading text-lg">{title}</p>
+      {subtitle && <p className="text-sm text-topsoil/70">{subtitle}</p>}
       <dl className="mt-2 divide-y divide-clay/25">{children}</dl>
     </div>
   );
@@ -100,7 +120,7 @@ function Row({
             </span>
           </>
         ) : (
-          <span className="text-base font-medium text-rust">Not entered yet</span>
+          <span className="text-base font-medium text-topsoil/60">Not entered yet</span>
         )}
       </dd>
     </div>

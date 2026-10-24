@@ -3,7 +3,7 @@ import { Leaf, Scissors, Sprout, Sun, type LucideIcon } from 'lucide-react';
 import type { SeasonCalendar as SeasonCalendarType } from '../types';
 import { dateRange, dayOfYear, shortDate } from '../lib/format';
 
-const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 interface Band {
   label: string;
@@ -13,13 +13,10 @@ interface Band {
   end: string;
 }
 
-export function SeasonCalendar({ calendar }: { calendar: SeasonCalendarType }) {
-  const year = calendar.plantingWindow.start.slice(0, 4);
-  const axisStart = dayOfYear(`${year}-04-01`);
-  const axisEnd = dayOfYear(`${year}-11-30`);
-  const span = axisEnd - axisStart;
-  const pct = (iso: string) => ((dayOfYear(iso) - axisStart) / span) * 100;
+const monthIndex = (iso: string) => Number(iso.slice(5, 7)) - 1;
 
+export function SeasonCalendar({ calendar }: { calendar: SeasonCalendarType }) {
+  const { year } = calendar;
   const maturity = calendar.growthStages.at(-1)?.estDate ?? calendar.harvestWindow.start;
   const bands: Band[] = [
     { label: 'Plant', icon: Sprout, color: '#6E9A3E', ...calendar.plantingWindow },
@@ -28,15 +25,30 @@ export function SeasonCalendar({ calendar }: { calendar: SeasonCalendarType }) {
     { label: 'Cover crop', icon: Leaf, color: '#33502A', ...calendar.coverCropWindow },
   ];
 
+  // Show April to November at least, widened for early-planting or late-harvest areas.
+  const firstMonth = Math.min(3, monthIndex(calendar.plantingWindow.start));
+  const coverEnd = calendar.coverCropWindow.end;
+  const lastMonth = coverEnd.startsWith(String(year)) ? Math.max(10, monthIndex(coverEnd)) : 11;
+  const months = MONTH_NAMES.slice(firstMonth, lastMonth + 1);
+  const axisStart = dayOfYear(`${year}-${String(firstMonth + 1).padStart(2, '0')}-01`);
+  const axisEnd = dayOfYear(new Date(Date.UTC(year, lastMonth + 1, 0)).toISOString().slice(0, 10));
+  const pct = (iso: string) => {
+    const doy = iso.startsWith(String(year)) ? dayOfYear(iso) : axisEnd;
+    return Math.min(100, Math.max(0, ((doy - axisStart) / (axisEnd - axisStart)) * 100));
+  };
+
   return (
     <>
       <div className="rounded-2xl border border-clay/40 bg-cream p-4">
         <p className="font-heading text-lg">Your {year} season</p>
-        <p className="mt-0.5 text-sm text-topsoil/70">Typical dates for Story County. Live weather coming soon.</p>
+        <p className="mt-0.5 text-sm text-topsoil/70">Typical dates for this spot, from 30 years of local weather.</p>
 
         <div className="mt-4">
-          <div className="ml-24 grid grid-cols-8 text-center text-xs font-medium text-topsoil/60">
-            {MONTHS.map((m) => (
+          <div
+            className="ml-24 grid text-center text-xs font-medium text-topsoil/60"
+            style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }}
+          >
+            {months.map((m) => (
               <span key={m}>{m}</span>
             ))}
           </div>
@@ -70,20 +82,30 @@ export function SeasonCalendar({ calendar }: { calendar: SeasonCalendarType }) {
           <Row label="Seed cover crop">{dateRange(calendar.coverCropWindow)}</Row>
           <Row label="Nitrogen">{calendar.fertilizerTiming}</Row>
         </dl>
+
+        {calendar.notes.length > 0 && (
+          <ul className="mt-3 space-y-1.5 rounded-xl bg-sand/35 p-3 text-sm text-topsoil/90">
+            {calendar.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="rounded-2xl border border-clay/40 bg-cream p-4">
         <p className="font-heading text-lg">Crop stages to watch</p>
         <p className="mt-0.5 text-sm text-topsoil/70">
-          Based on heat units (growing degree days) your corn needs to reach each stage.
+          When corn planted at the start of the window usually reaches each stage, from local heat units (GDD).
         </p>
         <ul className="mt-3 divide-y divide-clay/25">
           {calendar.growthStages.map((stage) => (
             <li key={stage.stage} className="flex items-center justify-between gap-3 py-2.5">
               <span className="text-base">{stage.stage}</span>
               <span className="text-right">
-                <span className="block text-base font-semibold">~{shortDate(stage.estDate)}</span>
-                <span className="block text-xs text-topsoil/60">{stage.gddThreshold} GDD</span>
+                <span className="block text-base font-semibold">
+                  {stage.estDate ? `~${shortDate(stage.estDate)}` : 'Not before frost'}
+                </span>
+                <span className="block text-xs text-topsoil/60">{stage.gddThreshold.toLocaleString()} GDD</span>
               </span>
             </li>
           ))}

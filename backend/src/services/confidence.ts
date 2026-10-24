@@ -48,12 +48,15 @@ export function levelFor(value: number): ConfidenceLevel {
   return 'Low';
 }
 
+// `adjustment` is the location adjustment in percentage points (see locationConfidence.ts).
 export function combineConfidence(
   inputs: Measured<unknown>[],
+  adjustment = 0,
   asOf: Date = new Date(),
 ): Confidence {
   const total = inputs.reduce((sum, input) => sum + inputConfidence(input, asOf), 0);
+  const adjusted = Math.min(0.99, Math.max(0.05, total / inputs.length + adjustment / 100));
   // Round off float error so e.g. (0.7 + 0.7 + 1) / 3 lands on 0.8, not 0.7999…
-  const value = Math.round((total / inputs.length) * 1e4) / 1e4;
+  const value = Math.round(adjusted * 1e4) / 1e4;
   return { value, level: levelFor(value) };
 }

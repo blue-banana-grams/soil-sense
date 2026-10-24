@@ -1,19 +1,31 @@
 # SoilSense
 
-A free, open-source web app that helps corn farmers see how much healthy
-topsoil is left on their fields and plan rotations and seasons to protect
-it. Built for the Soil Health / AI Helper hackathon challenge, scoped to
-Story County, Iowa for the demo.
+A free, open-source web app that helps corn farmers see how healthy the
+topsoil on their field is and plan rotations and seasons to protect it.
+Built for the Soil Health / AI Helper hackathon challenge. Works anywhere in
+the lower 48 US states.
+
+Live: https://soil-sense-xi.vercel.app (phone preview: `/?view=phone`)
+
+## How it works
+
+1. **Location first.** The landing page asks one thing: where's your field?
+   Town or ZIP search, "Use my location", or "Try an example".
+2. **Results from public data.** The backend looks up that exact point and
+   returns a topsoil score, a confidence level with a plain "why" list, a
+   "This week on your field" card, a rotation plan and a season calendar.
+3. **Optional details.** "Raise your confidence" asks a few skippable
+   questions (tillage, yield goal, fertilizer, lab soil test). Answers raise
+   confidence and unlock more recommendations. They are kept in the
+   browser's local storage per location.
 
 ## What's here
 
-- `frontend/` — React + Vite + TypeScript + Tailwind, Leaflet map of Story
-  County fields, a slide-out panel with the topsoil score, rotation plan,
-  season calendar, and plain-language AI explanation.
-- `backend/` — Node + Express + TypeScript API. Currently serves mock
-  Story County field data (`backend/src/config/storyCounty.ts`) run through
-  the real scoring/rotation/calendar logic — swap the mock data source for
-  live USDA/Open-Meteo calls without touching the routes or frontend.
+- `frontend/` — React + Vite + TypeScript + Tailwind + Leaflet.
+- `backend/` — Node + Express + TypeScript API:
+  - `GET /api/geocode?q=` — town / ZIP search (lower 48 only)
+  - `POST /api/report` — `{ lat, lng, place?, details? }` → full report
+- `vercel.json` — deploys both as one Vercel project (`/api` → backend).
 
 ## Running it locally
 
@@ -30,42 +42,46 @@ cd frontend && npm install && npm run dev
 Frontend runs on http://localhost:5173 and proxies `/api` to the backend
 on http://localhost:4000.
 
-For county yield comparisons, copy `backend/.env.example` to `backend/.env`
-and add a free USDA NASS Quick Stats key
-(https://quickstats.nass.usda.gov/api). Without it, the app works and just
-hides the comparison. `.env` is git-ignored; never commit the key.
+For county yields and irrigation, copy `backend/.env.example` to
+`backend/.env` and add a free USDA NASS Quick Stats key
+(https://quickstats.nass.usda.gov/api). Without it, the app still works and
+leaves those parts out. `.env` is git-ignored; never commit the key.
 
-## Data sources (to wire in, all free)
+## Data sources (all free)
 
-- USDA SSURGO / Soil Data Access — organic matter, topsoil depth, slope, drainage, erosion
-- USDA CropScape (Cropland Data Layer) — crop grown per field per year
-- USDA NASS Quick Stats — county yields over time (free API key)
-- Open-Meteo — historical + forecast weather for GDD and soil temperature
+| Data | Source | File |
+|---|---|---|
+| County for a point; lower-48 check | US Census geocoder | `services/geo.ts` |
+| Town / ZIP search | Open-Meteo geocoding | `services/geo.ts` |
+| Soil: organic matter, pH, CEC, texture, slope, drainage, erosion, topsoil depth | USDA Soil Data Access (SSURGO) | `services/ssurgo.ts` |
+| Crop grown each of the last 5 years | USDA CropScape (Cropland Data Layer) | `services/cropscape.ts` |
+| 30-year frost dates, heat units (GDD), rain variability; soil temp + 7-day forecast | Open-Meteo archive + forecast | `services/weather.ts` |
+| County yields; share of corn irrigated (2022 Census of Agriculture) | USDA NASS Quick Stats | `services/nass.ts` |
 
-Each has a clear seam in `backend/src/services/` and
-`backend/src/config/storyCounty.ts` to swap mock data for a live fetch.
+Only the soil survey is required. If any other source fails, the report
+still loads, lowers confidence where it matters, and lists what was
+unavailable. Lookups are cached in memory (`services/cache.ts`).
 
-## Score & rotation logic
+## Score, confidence & plan logic
 
 Inputs follow `corn_soil_algorithm_input_spec (2).xlsx` (draft v0.1). Every
 value is stored with its source tier (lab, field test, USDA map data, field
 kit, observation, farmer entry), unit, method and sample date. All weights
 and cutoffs are placeholders pending agronomist calibration.
 
-- `backend/src/services/confidence.ts` — the spec's confidence rules: tier
-  base confidence, age and missing-method penalties, High/Medium/Low.
-- `backend/src/services/recommendations.ts` — the spec's recommendation
-  gates. Never gives lime or P/K rates without lab data; lists what's
-  missing and what would raise confidence.
-- `backend/src/services/scoring.ts` — rule-based topsoil health score (0–100)
-  from organic matter, topsoil depth, slope, erosion class, and years of
-  continuous corn, with a confidence level.
-- `backend/src/services/rotation.ts` — rule-based multi-year rotation plan;
-  breaks continuous corn into corn-soybean rotation, adds a cover crop year
-  when organic matter is low or slope is steep.
-- `backend/src/services/calendar.ts` — season calendar (planting window,
-  growth stages, fertilizer timing, harvest, cover crop window); currently
-  static placeholder dates, meant to be replaced with a real GDD calc
-  against Open-Meteo data.
-- `backend/src/services/ai.ts` — plain-language explanation; currently a
-  template, meant to be replaced with a real LLM call.
+- `services/confidence.ts` — the spec's confidence rules (tier base
+  confidence, age and missing-method penalties, High/Medium/Low), plus a
+  location adjustment in percentage points.
+- `services/locationConfidence.ts` — location factors: whether satellite
+  records show cropland, year-to-year rain variability, irrigated share of
+  county corn, and frost-free season length vs corn's ~130 days.
+- `services/recommendations.ts` — the spec's recommendation gates. Never
+  calculates lime or P/K rates; lists what's missing and what would raise
+  confidence.
+- `services/scoring.ts` — rule-based topsoil health score (0–100).
+- `services/rotation.ts` — multi-year rotation plan starting next season.
+- `services/calendar.ts` / `services/season.ts` — season calendar from the
+  location's own climate (spec Climate_Derivations: 86/50 °F GDD, May–Sep,
+  frost at ≤ 0 °C), and the "This week" card from today's date and forecast.
+- `services/ai.ts` — plain-language explanation; a template for now, meant
+  to be replaced with a real LLM call.

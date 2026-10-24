@@ -14,5 +14,3 @@ export const SCORE_MEANING: Record<TopsoilScore['label'], string> = {
   'At risk': 'Losing topsoil. Worth acting on this season.',
   Depleted: 'Topsoil is badly worn. Rebuilding it is the priority.',
 };
-
-export const LEGEND_COLORS = ['#2A1B12', '#4A2E1C', '#8A5A3B', '#C49A6C', '#E3CFA8'];

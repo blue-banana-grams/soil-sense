@@ -25,7 +25,7 @@ function labelFor(value: number): TopsoilScore['label'] {
   return 'Depleted';
 }
 
-export function scoreField(field: FieldRecord): TopsoilScore {
+export function scoreField(field: FieldRecord, confidenceAdjustment = 0): TopsoilScore {
   const { soil, cropHistory } = field;
   const organicMatter = soil.organicMatterPct.value;
   const topsoilDepth = soil.topsoilDepthIn.value;
@@ -74,13 +74,10 @@ export function scoreField(field: FieldRecord): TopsoilScore {
 
   value = Math.max(0, Math.min(100, Math.round(value)));
 
-  const confidence = combineConfidence([
-    soil.organicMatterPct,
-    soil.topsoilDepthIn,
-    soil.slopePct,
-    soil.erosionClass,
-    cropHistory,
-  ]);
+  const confidence = combineConfidence(
+    [soil.organicMatterPct, soil.topsoilDepthIn, soil.slopePct, soil.erosionClass, cropHistory],
+    confidenceAdjustment,
+  );
 
   return { value, label: labelFor(value), reasons, confidence };
 }

@@ -44,6 +44,15 @@ h3 {
   font-family: var(--font-sans);
 }
 
+/* Phone preview: still scrollable, but no desktop scrollbar taking up screen width. */
+.embedded,
+.embedded * {
+  scrollbar-width: none;
+}
+.embedded ::-webkit-scrollbar {
+  display: none;
+}
+
 /* Warm the street map toward the soil palette. */
 .leaflet-tile-pane {
   filter: sepia(0.3) saturate(0.85) brightness(1.02);

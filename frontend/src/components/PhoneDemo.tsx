@@ -27,7 +27,8 @@ const STEPS = [
 ];
 
 export function PhoneDemo() {
-  const scale = useFitScale(48);
+  // Room for the page's vertical padding (1.5rem each side at a 17px base) plus a little air.
+  const scale = useFitScale(72);
 
   return (
     <div className="field-rows flex min-h-svh flex-col items-center justify-center gap-10 bg-soil-dark px-4 py-6 lg:flex-row lg:gap-20">
